@@ -139,16 +139,14 @@ def main(opt):
         sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
         cols, rows = do_log_sql(db, sql)
 
-        cols, rows = do_log_sql(db, 'select count(*) from {0}'.format(pconcepts))
-        all_count = rows[0][0] 
-
         sql = '''
         update (
             with cnts as (
                 -- select cohort of interest from {0} table
                 select ccd      -- concept code
-                , count(*) cnt  -- count
-                , count(*) / (select count(distinct pn) from {0}) frc
+                -- try sometime pc.pn and see if difference
+                , count(distinct mc.pn) cnt  -- count
+                , count(distinct mc.pn) / {3} frc
                                 -- fraction of all patients
                 from {0} pc 
                 join {1} mc on mc.pn = pc.pn 
@@ -163,18 +161,14 @@ def main(opt):
             left join cnts on pc.ccd = cnts.ccd
         ) up
         set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
-        '''.format(pconcepts, chi_name, pcounts)
+        '''.format(pconcepts, chi_name, pcounts, len(pats))
         cols, rows = do_log_sql(db, sql)
 
         sql = '''
-        update {0} set {1} = (
-            select count(distinct pc.pn)
-            from {2} pc
-            join {1} mc on mc.pn = pc.pn
-        )
+        update {0} set {1} = {2}
         , frc_{1} = 1
         where ccd = 'TOTAL'
-        '''.format(pcounts, chi_name, pconcepts)
+        '''.format(pcounts, chi_name, len(pats))
         cols, rows = do_log_sql(db, sql)
 
         cols, rows = do_log_sql(db, 'commit')
