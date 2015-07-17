@@ -29,6 +29,8 @@ def main(cn,cr,pset):
 	. . .
 	7. Disparities!
 	"""
+	psetexists = cr.execute("select count(*) from all_objects where object_type in ('TABLE','VIEW') and object_name = '"+par['pset']+"'").fetchone()[0]
+	print psetexists
 	pns = [ii[0] for ii in cr.execute('select distinct patient_num from '+par['datamart']+'.qt_patient_set_collection where result_instance_id = '+pset).fetchall()]
 	np = len(pns)
 	print np 
