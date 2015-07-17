@@ -75,6 +75,8 @@ def main(opt):
     dbi = dbmgr(crcDB)
 
     with dbi() as db:
+	sql = '''
+	'''.format()
         sql = '''
             select ps.result_instance_id
                 , qi.query_instance_id, qm.query_master_id
