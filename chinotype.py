@@ -29,7 +29,37 @@ def main(cn,cr,pset):
 	. . .
 	7. Disparities!
 	"""
-	print pset
+	pns = [ii[0] for ii in cr.execute('select distinct patient_num from '+par['datamart']+'.qt_patient_set_collection where result_instance_id = '+pset).fetchall()]
+	np = len(pns)
+	print np 
+	""" --Here is the query that this will eventually wrap:
+	update (
+        	with cnts as ( select 
+                        -- concept code
+                        ccd 
+                        -- how many patients in cohort 
+                        ,count(*) cnt 
+                        -- what fraction of patients in cohort 
+                        ,count(*)/"+np+" frc 
+                -- this join is used for selecting just the cohort of interest out of the ${pcname}$ table
+                from "+par['pset']+" pc where pn in ("+",".join(pns)+")
+        	)
+	        -- to avoid spam, we select just the source and target columns for the update
+        	select pc."+newcolname+" emptycnt -- empty target column for counts
+                ,nvl(cnts.cnt,0) newcnt -- source column for counts
+                ,pc.frc_"+newcolname+" emptyfrc -- empty target column for fractions
+                ,nvl(cnts.frc,0) newfrc -- source column for fractions
+        	from par['pccnts'] pc left join cnts on pc.ccd = cnts.ccd
+	) up
+	-- and then do the update
+	set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc;
+
+	-- Then we have one last statement, for the totals
+	"+update par['pccnts']+" set "+newcolname+" = "+string(np)
+        , frc_"+newcolname+" = 1
+        where ccd = 'TOTAL';
+	"""
+	import pdb;pdb.set_trace()
 
 if __name__ == '__main__':
 	main(cn,cr,args.pset)
