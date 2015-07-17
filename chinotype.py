@@ -7,15 +7,24 @@ import cx_Oracle as cx,argparse,ConfigParser
 
 cfg = ConfigParser.RawConfigParser()
 parser = argparse.ArgumentParser()
+# define and document the command-line arguments
 parser.add_argument("pset",help="A number, representing a patient set that exists in i2b2")
 parser.add_argument("configfile",help="The config file from which to get connection information")
+# read the command-line arguments into args
 args = parser.parse_args()
-# We read in the config file specified by the second argument
+# read in the config file specified by the second argument
 cfg.read(args.configfile)
+# create an object to store the configurations from this file for easy retrieval
 par=dict(cfg.items("connection"))
 
+""" bos666, I'm probably butchering this, I assume you have some way by now of acommodating
+both SIDs and SERVICE_NAMEs, and I welcome your corrections"""
+""" For people who aren't bos666: makedsn() simply creates the obscure string Oracle needs 
+to figure out what to connect to"""
 dsn=cx.makedsn(par['host'],par['port'],service_name=par['service_name'])
+# connection object
 cn=cx.connect(par['user'],par['pw'],dsn)
+# cursor object
 cr=cx.Cursor(cn)
 
 def main(cn,cr,pset):
