@@ -38,11 +38,32 @@ def main(cn,cr,pset):
 	. . .
 	7. Disparities!
 	"""
-	psetexists = cr.execute("select count(*) from all_objects where object_type in ('TABLE','VIEW') and object_name = '"+par['pset']+"'").fetchone()[0]
-	print psetexists
+	pcons = par['pc_schema']+"."+par['pconcepts']
+	pconsct = par['pc_schema']+"."+par['pconcepts_counts']
+	obs = par['datamart']+".observation_fact"
+	pcexists = cr.execute("select count(*) from all_objects where object_type in ('TABLE','VIEW') and object_name = '"+par['pconcepts'].upper()+"'").fetchone()[0]
+	if pcexists == 0:
+		print "Creating "+pcons
+		cr.execute("create table "+pcons+""" as with 
+			obs as (select distinct patient_num pn,concept_cd ccd from """+obs+"""),
+			-- patients who have at least some visit info, on which we will filter using a join
+			good as (select distinct patient_num 
+			        from """+obs+""" where concept_cd = 'KUMC|DischargeDisposition:0')
+			select obs.* from obs join good on pn = patient_num """)
+		
 	pns = [ii[0] for ii in cr.execute('select distinct patient_num from '+par['datamart']+'.qt_patient_set_collection where result_instance_id = '+pset).fetchall()]
 	np = len(pns)
-	print np 
+	tnp = cr.execute("select count(distinct pn) from "+pcons).fetchone()[0]
+	pcfexists = cr.execute("select count(*) from all_objects where object_type in ('TABLE','VIEW') and object_name = '"+par['pconcepts_counts'].upper()+"'").fetchone()[0]
+	if pcfexists == 0:
+		print "Creating "+pconsct
+		import pdb;pdb.set_trace()
+		cr.execute("create table "+pconsct+""" as 
+			select ccd,count(distinct pn) total,count(distinct pn)/"""+str(tnp)+""" frc_total 
+			from """+pcons+""" group by ccd
+			union all 
+			select 'TOTAL' ccd,(select count(distinct pn) from """+pcons+") total,1 frc_total from dual")
+	
 	""" --Here is the query that this will eventually wrap:
 	update (
         	with cnts as ( select 
