@@ -54,6 +54,7 @@ def debug_dbopt(db):
     log.debug('chi_user={0}'.format(db['chi_user']))
     log.debug('chi_pconcepts={0}'.format(db['chi_pconcepts']))
     log.debug('chi_pcounts={0}'.format(db['chi_pcounts']))
+    log.debug('chi_schema={0}'.format(db['chi_schema']))
 
 def main(opt):
     db=opt['database']
@@ -62,8 +63,7 @@ def main(opt):
     service, schema, qmid = db['crc_service_name'], db['schema'], db['qmid']
     chi_host, chi_port, chi_user = db['chi_host'], db['chi_port'], db['chi_user']
     chi_service = db['chi_service_name']
-    pconcepts, pcounts = db['chi_pconcepts'], db['chi_pcounts']
-
+    pconcepts, pcounts,pschema = db['chi_pconcepts'], db['chi_pcounts'], db['chi_schema']
     log.debug('keyring get oracle://{0}/{1} {2}'.format(host, service, user))
     log.debug('*******')
     pw = keyring.get_password('oracle://{0}/{1}'.format(host, service), user)
@@ -75,8 +75,6 @@ def main(opt):
     dbi = dbmgr(crcDB)
 
     with dbi() as db:
-	sql = '''
-	'''.format()
         sql = '''
             select ps.result_instance_id
                 , qi.query_instance_id, qm.query_master_id
@@ -119,22 +117,52 @@ def main(opt):
     chi_dbi = dbmgr(chiDB)
 
     with chi_dbi() as db:
+	# had to separate schema and name of pconcepts so that the check for existance below would work
+        cols, rows = do_log_sql(db,"select count(*) from all_objects where object_type = 'TABLE' and object_name = '{0}'".format(pconcepts.upper()))
+	# setting pconcepts to what the rest of the code will expect it to be
+	pconcepts = pschema+"."+pconcepts
+        if rows[0][0] == 0:
+            sql = '''
+                create table {0} as with 
+                obs as (select distinct patient_num pn,concept_cd ccd from {1}.observation_fact),
+                -- patients who have at least some visit info, on which we will filter using a join
+                good as (select distinct patient_num 
+                    from {1}.observation_fact where concept_cd = 'KUMC|DischargeDisposition:0')
+                select obs.* from obs join good on pn = patient_num
+	    '''.format(pconcepts,schema)
+	    cols, rows = do_log_sql(db, sql)
+
+        cols, rows = do_log_sql(db,"select count(*) from all_objects where object_type = 'TABLE' and object_name = '{0}'".format(pcounts.upper()))
+	pcounts = pschema+"."+pcounts
+
+	if rows[0][0] == 0:
+            cols, rows = do_log_sql(db,"select count(distinct pn) from {0}".format(pconcepts))
+            tnp = rows[0][0]
+            sql = '''
+                create table {0} as
+                select ccd, count(distinct pn) total, count(distinct pn)/{1} frc_total
+                from {2} group by ccd
+                union all
+                select 'TOTAL' ccd,{1} total, 1 frc_total from dual
+	    '''.format(pcounts,tnp,pconcepts)
+
         try:
             cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
         except:
             pass
 
+        # When patient_mapping is empty, script errors out, had to use patient_dimension instead
         sql = '''
             create table {0} as 
                 select patient_num pn
-                from {1}.patient_mapping
+                from {1}.patient_dimension
                 where 1 = 0
         '''.format(chi_name, schema)
         cols, rows = do_log_sql(db, sql)
 
         sql='insert into {0} (pn) values (:pn)'.format(chi_name)
         cols, rows = do_log_sql(db, sql, [[p[0]] for p in pats])
-
+        import pdb; pdb.set_trace()
         sql = 'alter table {0} add {1} number'.format(pcounts, chi_name)
         cols, rows = do_log_sql(db, sql)
 
