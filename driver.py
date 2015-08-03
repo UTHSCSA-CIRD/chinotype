@@ -39,7 +39,7 @@ def config():
     cp.readfp(open(config_fn, 'r'), filename=config_fn)
     opt = cp._sections
     opt['database']['qmid'] = arguments['QMID']
-    log.debug('opt:\n%s' % opt)
+    log.debug('opt:\n{0}'.format(opt))
     return opt
 
 def debug_dbopt(db):
@@ -107,6 +107,7 @@ def main(opt):
         chi_name = 'm{0}_i{1}_r{2}'.format(
             qdata['query_master_id'], qdata['query_instance_id'], 
             qdata['result_instance_id'])
+        log.info('chi_pconcepts={0}'.format(pconcepts))
         log.info('chi_pcounts={0}'.format(pcounts))
         log.info('chi_name={0}'.format(chi_name))
 
