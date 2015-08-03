@@ -122,6 +122,49 @@ def main(opt):
     chi_dbi = dbmgr(chiDB)
 
     with chi_dbi() as db:
+        # check if pconcepts exists
+        try:
+            cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pconcepts))
+        except:
+            #log.error('ERROR, chi_pconcepts table does not exist')
+            #raise SystemExit
+            log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
+            sql = '''
+            create table {0} as
+            with obs as (
+                select distinct patient_num pn, concept_cd ccd
+                from {1}.observation_fact
+            )
+            -- patients who have at least some visit info, on which we will filter using a join
+            -- open question: are there any patients missing this code that nevertheless have EMR
+            -- data other than demographics?
+            , good as (
+                select distinct patient_num
+                from {1}.observation_fact
+                where concept_cd = 'KUMC|DischargeDisposition:0'
+            )
+            select obs.* from obs join good on pn = patient_num
+            '''.format(pconcepts, schema)
+            cols, rows = do_log_sql(db, sql)
+
+        # create pcounts table if needed
+        try:
+            cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pcounts))
+        except:
+            log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
+            sql = '''
+            create table {0} as
+            select ccd
+            , count(distinct pn) total
+            , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+            from {1} group by ccd
+            union all
+            select 'TOTAL' ccd
+            , (select count(distinct pn) from {1}) total
+            , 1 frc_total from dual
+            '''.format(pcounts, pconcepts)
+            cols, rows = do_log_sql(db, sql)
+
         try:
             cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
         except:
