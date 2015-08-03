@@ -104,12 +104,11 @@ def main(opt):
         cols, rows = do_log_sql(db, sql)
         pats = rows
         log.info('patient count={0}'.format(len(pats)))
-        chi_name = 'm{0}_i{1}_r{2}'.format(
+        chi_name = 'M{0}_I{1}_R{2}'.format(
             qdata['query_master_id'], qdata['query_instance_id'], 
             qdata['result_instance_id'])
         log.info('chi_pconcepts={0}'.format(pconcepts))
         log.info('chi_pcounts={0}'.format(pcounts))
-        log.info('chi_name={0}'.format(chi_name))
 
     log.debug('keyring get oracle://{0}/{1} {2}'.format(chi_host, chi_service, chi_user))
     log.debug('*******')
@@ -167,11 +166,50 @@ def main(opt):
             '''.format(pcounts, pconcepts)
             cols, rows = do_log_sql(db, sql)
 
-        # make a temp table of patient set for query chi_name=m###_r###_i###
+        # if pcounts has QMID & patient count matches latest, return existing results
+        # if pcounts has QMID & patient count DOES NOT match latest, warn/exit
         try:
-            cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
-        except:
-            pass
+            log.debug('Checking if columns already exist for QMID {0}...'.format(qmid))
+            table_info = pcounts.split('.')
+            owner, table_name = '', ''
+            if len(table_info) > 1:
+                owner = 'and owner = \'{0}\''.format(table_info[0].upper())
+            if len(table_info) > 0:
+                table_name = 'and table_name = \'{0}\''.format(table_info[1].upper())
+            sql = '''
+            select column_name from all_tab_columns
+            where 1=1 {0} {1}
+            and column_name like 'M{2}_%'
+            '''.format(owner, table_name, qmid)
+            cols, rows = do_log_sql(db, sql)
+            if len(rows) > 0:
+                column_name = rows[0][0]
+                cols, rows = do_log_sql(db, \
+                    'select {0} total from {1} where ccd = \'TOTAL\''.format(chi_name, pcounts))
+                log.debug('      total: {0}'.format(rows[0][0]))
+                if len(pats) == rows[0][0]:
+                    # In practice, i2b2 query re-runs seem to always get a new QMID,
+                    # but this should catch duplicate requests for chi2 calculation
+                    log.debug('WARNING, preexisting chi columns for QMID {0}'.format(qmid))
+                    log.debug('  new_query: {0}'.format(chi_name))
+                    log.debug('  old_query: {0}'.format(column_name))
+                    log.info('chi_name={0}'.format(column_name))
+                else:
+                    # This should never happen unless i2b2 QT table are corrupt 
+                    # or out of sync with the chi_pcounts table
+                    log.info('ERROR, columns exist for QMID {0} but patiet set differs'.format(qmid))
+                    log.info('  new_query: {0}'.format(chi_name))
+                    log.info('  old_query: {0}'.format(column_name))
+                raise SystemExit
+            else:
+                log.info('chi_name={0}'.format(chi_name))
+        except cx.DatabaseError as e:
+            # pcounts does not have existing QMID columns
+            raise
+            #pass
+
+        # make a temp table of patient set for query chi_name=m###_r###_i###
+        log.debug('Creating temp table for patient set...')
         sql = '''
             create table {0} as 
                 select patient_num pn
@@ -234,17 +272,22 @@ def dbmgr(connect, temp_table=None):
         cur = conn.cursor()
         try:
             yield cur
-        except:
+        except Exception as e:
+            #error, = e.args
+            #log.debug('e.args={0}'.format(e.args))
+            #log.debug('error.code={0}'.format(error.code))
+            #log.debug('error.message={0}'.format(error.message))
+            #log.debug('error.context={0}'.format(error.context))
             conn.rollback()
             if temp_table:
                 try:
                     log.debug('Previous query rollback pending, dropping temp table...')
                     cols, rows = do_log_sql(cur, 'drop table {0}'.format(temp_table))
-                    log.debug('Raising error from rollback...')
-                    #cur.execute('drop table {0}'.format(temp_table))
                 except:
                     pass
-            raise
+                finally:
+                    log.debug('Raising error from rollback...')
+            raise e
         else:
             conn.commit()
         finally:
