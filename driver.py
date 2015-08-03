@@ -85,10 +85,14 @@ def main(opt):
                 on ri.query_instance_id = qi.query_instance_id
             join {0}.qt_patient_set_collection ps
                 on ps.result_instance_id = ri.result_instance_id
-            where qm.query_master_id={1} and rownum = 1
+            where ri.result_type_id = 1     -- patient set
+            and qm.query_master_id={1} and rownum = 1
             order by ps.result_instance_id desc, qi.query_instance_id desc
         '''.format(schema, qmid)
         cols, rows = do_log_sql(db, sql)
+        if len(rows) == 0:
+            log.error('ERROR, QMID {0} has no patient set result instance'.format(qmid))
+            raise SystemExit
         qdata = dict(zip([c.lower() for c in cols], list(rows[0])))
         log.debug('qdata={0}'.format(qdata))
 
