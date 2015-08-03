@@ -119,11 +119,12 @@ def main(opt):
         if not it:
             it.append(cx.connect(chi_user, chi_pw, chi_dsn))
         return it[0]
-    chi_dbi = dbmgr(chiDB)
+    chi_dbi = dbmgr(chiDB, chi_name)
 
     with chi_dbi() as db:
         # check if pconcepts exists
         try:
+            log.debug('Checking if chi_pconcepts table exists...')
             cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pconcepts))
         except:
             #log.error('ERROR, chi_pconcepts table does not exist')
@@ -149,6 +150,7 @@ def main(opt):
 
         # create pcounts table if needed
         try:
+            log.debug('Checking if chi_pcounts table exists...')
             cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pcounts))
         except:
             log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
@@ -165,11 +167,11 @@ def main(opt):
             '''.format(pcounts, pconcepts)
             cols, rows = do_log_sql(db, sql)
 
+        # make a temp table of patient set for query chi_name=m###_r###_i###
         try:
             cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
         except:
             pass
-
         sql = '''
             create table {0} as 
                 select patient_num pn
@@ -177,10 +179,10 @@ def main(opt):
                 where 1 = 0
         '''.format(chi_name, schema)
         cols, rows = do_log_sql(db, sql)
-
         sql='insert into {0} (pn) values (:pn)'.format(chi_name)
         cols, rows = do_log_sql(db, sql, [[p[0]] for p in pats])
 
+        # add columns to chi_pcounts
         sql = 'alter table {0} add {1} number'.format(pcounts, chi_name)
         cols, rows = do_log_sql(db, sql)
 
@@ -223,7 +225,7 @@ def main(opt):
         cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
 
 
-def dbmgr(connect):
+def dbmgr(connect, temp_table=None):
     '''Make a context manager that yields cursors, given connect access.
     '''
     @contextmanager
@@ -234,6 +236,14 @@ def dbmgr(connect):
             yield cur
         except:
             conn.rollback()
+            if temp_table:
+                try:
+                    log.debug('Previous query rollback pending, dropping temp table...')
+                    cols, rows = do_log_sql(cur, 'drop table {0}'.format(temp_table))
+                    log.debug('Raising error from rollback...')
+                    #cur.execute('drop table {0}'.format(temp_table))
+                except:
+                    pass
             raise
         else:
             conn.commit()
