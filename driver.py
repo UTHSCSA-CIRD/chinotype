@@ -122,6 +122,7 @@ def main(opt):
 	# setting pconcepts to what the rest of the code will expect it to be
 	pconcepts = pschema+"."+pconcepts
         if rows[0][0] == 0:
+            print "creating {0}".format(pconcepts);
             sql = '''
                 create table {0} as with 
                 obs as (select distinct patient_num pn,concept_cd ccd from {1}.observation_fact),
@@ -136,6 +137,7 @@ def main(opt):
 	pcounts = pschema+"."+pcounts
 
 	if rows[0][0] == 0:
+            print "creating {0}".format(pcounts);
             cols, rows = do_log_sql(db,"select count(distinct pn) from {0}".format(pconcepts))
             tnp = rows[0][0]
             sql = '''
@@ -145,6 +147,7 @@ def main(opt):
                 union all
                 select 'TOTAL' ccd,{1} total, 1 frc_total from dual
 	    '''.format(pcounts,tnp,pconcepts)
+            cols, rows = do_log_sql(db, sql)
 
         try:
             cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
@@ -162,8 +165,8 @@ def main(opt):
 
         sql='insert into {0} (pn) values (:pn)'.format(chi_name)
         cols, rows = do_log_sql(db, sql, [[p[0]] for p in pats])
-        import pdb; pdb.set_trace()
         sql = 'alter table {0} add {1} number'.format(pcounts, chi_name)
+        import pdb;pdb.set_trace()
         cols, rows = do_log_sql(db, sql)
 
         sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
