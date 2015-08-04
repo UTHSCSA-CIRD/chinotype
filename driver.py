@@ -4,7 +4,7 @@ Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
 Usage:
-   driver.py [options] QMID
+   driver.py [options] QMID [<shortname>]
 
 Options:
     -h --help           Show this screen
@@ -13,6 +13,9 @@ Options:
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
+
+<shortname> is a short (alphanumeric, no spaces) human-readable string
+to remind you what patient set a QMID was supposed to retrieve
 
 Configure database users in config file and set password in keyring a la
    $ keyring set oracle://crc_host/crc_service_name crc_user
@@ -26,6 +29,19 @@ from contextlib import contextmanager
 import keyring
 import logging
 
+'''TODO: accept a second optional QMID and shortname. If there is a seconnd
+QMID, create a second patient set, and then a third which will combine all 
+unique PATIENT_NUMs from either of the first two. From now on this can serve
+as a reference population for either of the first two. If either of the first
+two QMIDs exists, it/they get/s skipped. The combined patient set gets a name that
+is chi_name+'_or_'+chi_name2. If that name already exists or if 
+chi_name2+'_or_'+chi_name happens to already exists, that is used instead.
+If QMID2 is not specified, a chi-squared table is output for QMID vs TOTAL
+Otherwise a chi-squared table is output for QMID vs (QMID or QMID2)
+I.e. the first group is the group of interest, and the second are the 
+additional patients that combined with the first group will be the reference
+population.
+'''
 log = logging.getLogger(__name__)
 
 def config():
@@ -39,6 +55,10 @@ def config():
     cp.readfp(open(config_fn, 'r'), filename=config_fn)
     opt = cp._sections
     opt['database']['qmid'] = arguments['QMID']
+    opt['database']['shortname'] = arguments['<shortname>']
+    # If a not shortname specified, use QMID as short name
+    if not opt['database']['shortname']:
+        opt['database']['shortname'] = arguments['QMID']
     log.debug('opt:\n%s' % opt)
     return opt
 
@@ -120,9 +140,9 @@ def main(opt):
 	# had to separate schema and name of pconcepts so that the check for existance below would work
         cols, rows = do_log_sql(db,"select count(*) from all_objects where object_type = 'TABLE' and object_name = '{0}'".format(pconcepts.upper()))
 	# setting pconcepts to what the rest of the code will expect it to be
-	pconcepts = pschema+"."+pconcepts
+	spconcepts = pschema+"."+pconcepts
         if rows[0][0] == 0:
-            print "creating {0}".format(pconcepts);
+            print "creating {0}".format(spconcepts);
             sql = '''
                 create table {0} as with 
                 obs as (select distinct patient_num pn,concept_cd ccd from {1}.observation_fact),
@@ -130,15 +150,15 @@ def main(opt):
                 good as (select distinct patient_num 
                     from {1}.observation_fact where concept_cd = 'KUMC|DischargeDisposition:0')
                 select obs.* from obs join good on pn = patient_num
-	    '''.format(pconcepts,schema)
+	    '''.format(spconcepts,schema)
 	    cols, rows = do_log_sql(db, sql)
 
         cols, rows = do_log_sql(db,"select count(*) from all_objects where object_type = 'TABLE' and object_name = '{0}'".format(pcounts.upper()))
-	pcounts = pschema+"."+pcounts
+	spcounts = pschema+"."+pcounts
 
 	if rows[0][0] == 0:
-            print "creating {0}".format(pcounts);
-            cols, rows = do_log_sql(db,"select count(distinct pn) from {0}".format(pconcepts))
+            print "creating {0}".format(spcounts);
+            cols, rows = do_log_sql(db,"select count(distinct pn) from {0}".format(spconcepts))
             tnp = rows[0][0]
             sql = '''
                 create table {0} as
@@ -146,7 +166,7 @@ def main(opt):
                 from {2} group by ccd
                 union all
                 select 'TOTAL' ccd,{1} total, 1 frc_total from dual
-	    '''.format(pcounts,tnp,pconcepts)
+	    '''.format(spcounts,tnp,spconcepts)
             cols, rows = do_log_sql(db, sql)
 
         try:
@@ -162,14 +182,28 @@ def main(opt):
                 where 1 = 0
         '''.format(chi_name, schema)
         cols, rows = do_log_sql(db, sql)
-
+        sql = '''
+            select count(*) from all_tab_cols 
+                where table_name='{0}' and owner='{1}' 
+                and column_name like '%{2}'
+        '''.format(spcounts.upper(),chi_user.upper(),chi_name.upper())
+        import pdb;pdb.set_trace()
+        cols,rows = do_log_sql(db,sql)
+        '''TODO: instead of this, rely on chi_dd?'''
+        if rows[0][0] == 2:
+            print "{0} already exists".format(chi_name)
+            return
+        # yeah, I know, the below is lame, TODO: throw a proper error
+        elif rows[0][0] != 0:
+            print "Error, inconsistent state, need to delete {0} or frc_{0}".format(chi_name)
+            return
+        '''TODO: If chi_dd doesn't exist, create one. It should contain QMID, shortname, and N columns'''
         sql='insert into {0} (pn) values (:pn)'.format(chi_name)
         cols, rows = do_log_sql(db, sql, [[p[0]] for p in pats])
-        sql = 'alter table {0} add {1} number'.format(pcounts, chi_name)
-        import pdb;pdb.set_trace()
+        sql = 'alter table {0} add {1} number'.format(spcounts, chi_name)
         cols, rows = do_log_sql(db, sql)
 
-        sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
+        sql = 'alter table {0} add frc_{1} number'.format(spcounts, chi_name)
         cols, rows = do_log_sql(db, sql)
 
         sql = '''
@@ -194,15 +228,16 @@ def main(opt):
             left join cnts on pc.ccd = cnts.ccd
         ) up
         set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
-        '''.format(pconcepts, chi_name, pcounts, len(pats))
+        '''.format(spconcepts, chi_name, spcounts, len(pats))
         cols, rows = do_log_sql(db, sql)
 
         sql = '''
         update {0} set {1} = {2}
         , frc_{1} = 1
         where ccd = 'TOTAL'
-        '''.format(pcounts, chi_name, len(pats))
+        '''.format(spcounts, chi_name, len(pats))
         cols, rows = do_log_sql(db, sql)
+        '''TODO: after the above successfully done, insert QMID, shortname, and N into chi_dd'''
 
         cols, rows = do_log_sql(db, 'commit')
         cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
