@@ -53,7 +53,7 @@ def config():
     cp = SafeConfigParser()
     cp.readfp(open(config_fn, 'r'), filename=config_fn)
     opt = cp._sections
-    # Below needlessly complicated
+    # Can be simplified
     #if arguments['--output']:
     #    opt['output_file'] = True    
     #else: 
