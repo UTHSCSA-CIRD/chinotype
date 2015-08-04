@@ -4,7 +4,7 @@ Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
 Usage:
-   driver.py [options] QMID
+   driver.py [options] QMID [<shortname>] [<QMID2>] [<shortname2>]
 
 Options:
     -h --help           Show this screen
@@ -14,6 +14,16 @@ Options:
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
+
+shortname is an alphanumeric string that serves as a reminder of what
+the patient-set represented by the QMID is supposed to be (useful for
+.CSV file headers)
+
+QMID2 is an optional second query master ID, from which a reference
+population can be constructed if you're not comparing to TOTAL (which
+in many cases would be meaningless)
+
+shortname2 is the shortname for QMID2
 
 Configure database users in config file and set password in keyring a la
    $ keyring set oracle://crc_host/crc_service_name crc_user
@@ -60,6 +70,14 @@ def config():
     #    opt['output_file'] = False
     opt['output'] = arguments['--output']
     opt['database']['qmid'] = arguments['QMID']
+    opt['database']['shortname'] = arguments['<shortname>']
+    if not opt['database']['shortname']:
+        opt['database']['shortname'] = arguments['QMID']
+    opt['database']['qmid2'] = arguments['<qmid2>']
+    if opt['database']['qmid2']:
+        opt['database']['shortname2'] = arguments['<shortname2>']
+        if not opt['database']['shortname2']:
+            opt['database']['shortname2'] argumends['<qmid2>']
     log.debug('opt:\n{0}'.format(opt))
     return opt
 
