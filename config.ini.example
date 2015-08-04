@@ -21,3 +21,6 @@ schema=i2b2demodata
 ; passwords should be set in keyring, a la
 ;  $ keyring set oracle://crc_host/crc_service_name crc_user
 ;  $ keyring set oracle://chi_host/chi_service_name chi_user
+
+[output]
+csv=output.csv
