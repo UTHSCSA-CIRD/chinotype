@@ -10,6 +10,7 @@ Options:
     -h --help           Show this screen
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
+    -o --output         Create an chi2 output file
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
@@ -38,6 +39,10 @@ def config():
     cp = SafeConfigParser()
     cp.readfp(open(config_fn, 'r'), filename=config_fn)
     opt = cp._sections
+    if arguments['--output']:
+        opt['output_file'] = True    
+    else: 
+        opt['output_file'] = False
     opt['database']['qmid'] = arguments['QMID']
     log.debug('opt:\n{0}'.format(opt))
     return opt
@@ -58,6 +63,9 @@ def debug_dbopt(db):
 def main(opt):
     db=opt['database']
     debug_dbopt(db)
+    csvfile = (opt['output']['csv'])
+    if opt['output_file']:
+        log.info('output={0}'.format(csvfile))
     host, port, user = db['crc_host'], db['crc_port'], db['crc_user']
     service, schema, qmid = db['crc_service_name'], db['schema'], db['qmid']
     chi_host, chi_port, chi_user = db['chi_host'], db['chi_port'], db['chi_user']
@@ -194,6 +202,8 @@ def main(opt):
                     log.debug('  new_query: {0}'.format(chi_name))
                     log.debug('  old_query: {0}'.format(column_name))
                     log.info('chi_name={0}'.format(column_name))
+                    if opt['output_file']:
+                        output_chi_table(db, column_name, csvfile, pcounts, schema)
                 else:
                     # This should never happen unless i2b2 QT table are corrupt 
                     # or out of sync with the chi_pcounts table
@@ -203,6 +213,8 @@ def main(opt):
                 raise SystemExit
             else:
                 log.info('chi_name={0}'.format(chi_name))
+                if opt['output_file']:
+                    output_chi_table(db, chi_name, csvfile, pcounts, schema)
         except cx.DatabaseError as e:
             # pcounts does not have existing QMID columns
             raise
@@ -293,6 +305,45 @@ def dbmgr(connect, temp_table=None):
         finally:
             cur.close()
     return dbtrx
+
+
+def output_chi_table(db, colname, csvfile, pcounts, schema):
+    sql = '''
+    with cohort as (
+        select {0} pat_count from {1} where ccd = 'TOTAL'
+    )
+    select ccd, name
+    , total
+    , frc_total
+    , {0}
+    , frc_{0}
+    , power(cohort.pat_count * frc_total - {0}, 2) / (cohort.pat_count * frc_total) chisq
+    , case when frc_total < frc_{0} then 1 else -1 end dir
+    from pconcepts_counts
+    join (
+        select concept_cd, min(name_char) name
+        from blueherondata.concept_dimension
+        group by concept_cd
+    ) cd on cd.concept_cd = ccd
+    , cohort
+    order by chisq*dir desc
+    '''.format(colname, pcounts, schema)
+    cols, rows = do_log_sql(db, sql)
+
+    quote = ['CCD', 'NAME']
+    with open(csvfile, 'w') as file:
+        file.write('%s\n' % ','.join(['\"{0}\"'.format(c) for c in cols]))
+        for row in rows[0:100]:
+            data = dict(zip(cols, row))
+            for k, v in sorted(data.items(), key=lambda x: cols.index(x[0])):
+                if k in quote:
+                    file.write('\"{0}\"'.format(v))
+                else:
+                    file.write('{0}'.format(v))
+                if k == cols[-1]:
+                    file.write('\n')
+                else:
+                    file.write(',')
 
 
 def do_log_sql(cur, sql, params=[]): 
