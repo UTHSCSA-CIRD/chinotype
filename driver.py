@@ -4,7 +4,7 @@ Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
 Usage:
-   driver.py [options] QMID [<shortname>] [<QMID2>] [<shortname2>]
+   driver.py [options] QMID [<shortname>] [<qmid2>] [<shortname2>]
 
 Options:
     -h --help           Show this screen
