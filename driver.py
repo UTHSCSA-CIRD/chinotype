@@ -10,7 +10,7 @@ Options:
     -h --help           Show this screen
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
-    -o --output         Create an chi2 output file
+    -o --output=FILE    Create an chi2 output file
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
@@ -27,6 +27,20 @@ from contextlib import contextmanager
 import keyring
 import logging
 
+'''
+TODO: take a second, optional QMID, process exactly as first (i.e. if present, reuse)
+TODO: when there are two QMIDs, also generate a third patient-set which are all the unique PATIENT_NUMs in the union of the two patient sets
+TODO: when there are two QMIDs, use the joint QMID as the reference population for the first QMID (when one QMID use TOTAL as is done now)
+TODO: the joint QMID should be inserted just like the individual QMIDs (unless it already exists)
+TODO: to facilitate finding existing joint QMIDs regardless of what order their component QMIDs were specified, their names should be a concatenation of the ordered QMID names
+TODO: allow either or both QMIDs to be accompanied by an optional alphanumeric shortname (for readability of the output table later on), if missing then use the QMID (or dig out of QT table)
+TODO: when inserting columns into PCONCEPT_COUNTS also insert the CHI_NAME, SHORTNAME, and len(pats) into a table, say, CHI_DD; create if missing
+TODO: the SHORTNAME of a joint QMID is SHORTNAME1+"_"+SHORTNAME2
+TODO: when outputting the CSV file, replace CHI_NAMEs with SHORTNAMEs
+TODO: when outputting the CSV file, use WHERE JOINT_QMID > 0 (i.e. omit rows where the reference population and sub-population of interest have 0 counts)
+TODO: possibly look up certain things from CHI_DD instead of recalculating/searching each time? Either way, definitely needed for CSV headers
+'''
+
 log = logging.getLogger(__name__)
 
 def config():
@@ -39,10 +53,12 @@ def config():
     cp = SafeConfigParser()
     cp.readfp(open(config_fn, 'r'), filename=config_fn)
     opt = cp._sections
-    if arguments['--output']:
-        opt['output_file'] = True    
-    else: 
-        opt['output_file'] = False
+    # Below needlessly complicated
+    #if arguments['--output']:
+    #    opt['output_file'] = True    
+    #else: 
+    #    opt['output_file'] = False
+    opt['output'] = arguments['--output']
     opt['database']['qmid'] = arguments['QMID']
     log.debug('opt:\n{0}'.format(opt))
     return opt
@@ -63,9 +79,12 @@ def debug_dbopt(db):
 def main(opt):
     db=opt['database']
     debug_dbopt(db)
-    csvfile = (opt['output']['csv'])
-    if opt['output_file']:
+    if opt['output']:
+        csvfile = opt['output']
         log.info('output={0}'.format(csvfile))
+    #csvfile = (opt['output']['csv'])
+    #if opt['output_file']:
+    #    log.info('output={0}'.format(csvfile))
     host, port, user = db['crc_host'], db['crc_port'], db['crc_user']
     service, schema, qmid = db['crc_service_name'], db['schema'], db['qmid']
     chi_host, chi_port, chi_user = db['chi_host'], db['chi_port'], db['chi_user']
@@ -184,13 +203,17 @@ def main(opt):
                 owner = 'and owner = \'{0}\''.format(table_info[0].upper())
             if len(table_info) > 0:
                 table_name = 'and table_name = \'{0}\''.format(table_info[1].upper())
+            # note new fuzzy match below-- matched FOO and frc_FOO
             sql = '''
             select column_name from all_tab_columns
             where 1=1 {0} {1}
-            and column_name like 'M{2}_%'
+            and column_name like '%M{2}_%'
             '''.format(owner, table_name, qmid)
             cols, rows = do_log_sql(db, sql)
-            if len(rows) > 0:
+            # if already do exist
+            # note that it should really be == 2, otherwise permits error condition where
+            # just FOO or frc_FOO exists, but script thinks both do
+            if len(rows) == 2:
                 column_name = rows[0][0]
                 cols, rows = do_log_sql(db, \
                     'select {0} total from {1} where ccd = \'TOTAL\''.format(chi_name, pcounts))
@@ -202,7 +225,8 @@ def main(opt):
                     log.debug('  new_query: {0}'.format(chi_name))
                     log.debug('  old_query: {0}'.format(column_name))
                     log.info('chi_name={0}'.format(column_name))
-                    if opt['output_file']:
+                    #if opt['output_file']:
+                    if csvfile:
                         output_chi_table(db, column_name, csvfile, pcounts, schema)
                 else:
                     # This should never happen unless i2b2 QT table are corrupt 
@@ -211,68 +235,80 @@ def main(opt):
                     log.info('  new_query: {0}'.format(chi_name))
                     log.info('  old_query: {0}'.format(column_name))
                 raise SystemExit
-            else:
+            elif len(rows) == 0:
                 log.info('chi_name={0}'.format(chi_name))
-                if opt['output_file']:
+                # Actually, shouldn't we do the rest of this function in here?
+                # Cannot do otutpu_chi_table here, because when > 0 (now == 2) fails
+                # there is no chi_name yet to query from that table
+                # make a temp table of patient set for query chi_name=m###_r###_i###
+                log.debug('Creating temp table for patient set...')
+                try: 
+                    cols, rows = do_log_sql(db,'drop table {0}'.format(chi_name))
+                except:
+                    pass
+                finally:
+                    log.debug('No existing table to drop')
+
+                # note below that patient_mapping doesn't always exist, but patient_dimension does
+                sql = '''
+                create table {0} as 
+                    select patient_num pn
+                    from {1}.patient_dimension
+                    where 1 = 0
+                '''.format(chi_name, schema)
+                cols, rows = do_log_sql(db, sql)
+                sql='insert into {0} (pn) values (:pn)'.format(chi_name)
+                cols, rows = do_log_sql(db, sql, [[p[0]] for p in pats])
+
+                # add columns to chi_pcounts
+                sql = 'alter table {0} add {1} number'.format(pcounts, chi_name)
+                cols, rows = do_log_sql(db, sql)
+
+                sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
+                cols, rows = do_log_sql(db, sql)
+
+                sql = '''
+                update (
+                    with cnts as (
+                        -- select cohort of interest from {0} table
+                        select ccd      -- concept code
+                        -- try sometime pc.pn and see if difference
+                        , count(distinct mc.pn) cnt  -- count
+                        , count(distinct mc.pn) / {3} frc
+                                        -- fraction of all patients
+                        from {0} pc 
+                        join {1} mc on mc.pn = pc.pn 
+                        group by ccd
+                    )
+                    select 
+                        pc.{1} emptycnt -- empty target column for counts
+                        , nvl(cnts.cnt,0) newcnt -- source column for counts
+                        , pc.frc_{1} emptyfrc -- empty target column for fractions
+                        , nvl(cnts.frc,0) newfrc -- source column for fractions
+                    from {2} pc 
+                    left join cnts on pc.ccd = cnts.ccd
+                ) up
+                set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
+                '''.format(pconcepts, chi_name, pcounts, len(pats))
+                cols, rows = do_log_sql(db, sql)
+
+                sql = '''
+                update {0} set {1} = {2}
+                , frc_{1} = 1
+                where ccd = 'TOTAL'
+                '''.format(pcounts, chi_name, len(pats))
+                cols, rows = do_log_sql(db, sql)
+
+                cols, rows = do_log_sql(db, 'commit')
+                cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
+                import pdb;pdb.set_trace()
+                if csvfile:
                     output_chi_table(db, chi_name, csvfile, pcounts, schema)
+
         except cx.DatabaseError as e:
             # pcounts does not have existing QMID columns
             raise
             #pass
-
-        # make a temp table of patient set for query chi_name=m###_r###_i###
-        log.debug('Creating temp table for patient set...')
-        sql = '''
-            create table {0} as 
-                select patient_num pn
-                from {1}.patient_mapping
-                where 1 = 0
-        '''.format(chi_name, schema)
-        cols, rows = do_log_sql(db, sql)
-        sql='insert into {0} (pn) values (:pn)'.format(chi_name)
-        cols, rows = do_log_sql(db, sql, [[p[0]] for p in pats])
-
-        # add columns to chi_pcounts
-        sql = 'alter table {0} add {1} number'.format(pcounts, chi_name)
-        cols, rows = do_log_sql(db, sql)
-
-        sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
-        cols, rows = do_log_sql(db, sql)
-
-        sql = '''
-        update (
-            with cnts as (
-                -- select cohort of interest from {0} table
-                select ccd      -- concept code
-                -- try sometime pc.pn and see if difference
-                , count(distinct mc.pn) cnt  -- count
-                , count(distinct mc.pn) / {3} frc
-                                -- fraction of all patients
-                from {0} pc 
-                join {1} mc on mc.pn = pc.pn 
-                group by ccd
-            )
-            select 
-                pc.{1} emptycnt -- empty target column for counts
-                , nvl(cnts.cnt,0) newcnt -- source column for counts
-                , pc.frc_{1} emptyfrc -- empty target column for fractions
-                , nvl(cnts.frc,0) newfrc -- source column for fractions
-            from {2} pc 
-            left join cnts on pc.ccd = cnts.ccd
-        ) up
-        set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
-        '''.format(pconcepts, chi_name, pcounts, len(pats))
-        cols, rows = do_log_sql(db, sql)
-
-        sql = '''
-        update {0} set {1} = {2}
-        , frc_{1} = 1
-        where ccd = 'TOTAL'
-        '''.format(pcounts, chi_name, len(pats))
-        cols, rows = do_log_sql(db, sql)
-
-        cols, rows = do_log_sql(db, 'commit')
-        cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
 
 
 def dbmgr(connect, temp_table=None):
@@ -319,10 +355,10 @@ def output_chi_table(db, colname, csvfile, pcounts, schema):
     , frc_{0}
     , power(cohort.pat_count * frc_total - {0}, 2) / (cohort.pat_count * frc_total) chisq
     , case when frc_total < frc_{0} then 1 else -1 end dir
-    from pconcepts_counts
+    from {1}
     join (
         select concept_cd, min(name_char) name
-        from blueherondata.concept_dimension
+        from {2}.concept_dimension
         group by concept_cd
     ) cd on cd.concept_cd = ccd
     , cohort
@@ -333,7 +369,9 @@ def output_chi_table(db, colname, csvfile, pcounts, schema):
     quote = ['CCD', 'NAME']
     with open(csvfile, 'w') as file:
         file.write('%s\n' % ','.join(['\"{0}\"'.format(c) for c in cols]))
-        for row in rows[0:100]:
+        # We'll need all of them, and definitely not just the *top* 100
+        #for row in rows[0:100]:
+        for row in rows:
             data = dict(zip(cols, row))
             for k, v in sorted(data.items(), key=lambda x: cols.index(x[0])):
                 if k in quote:
