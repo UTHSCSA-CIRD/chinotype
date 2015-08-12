@@ -322,7 +322,7 @@ def output_chi_table(db, colname, csvfile, pcounts, schema):
     from pconcepts_counts
     join (
         select concept_cd, min(name_char) name
-        from blueherondata.concept_dimension
+        from {2}.concept_dimension
         group by concept_cd
     ) cd on cd.concept_cd = ccd
     , cohort
