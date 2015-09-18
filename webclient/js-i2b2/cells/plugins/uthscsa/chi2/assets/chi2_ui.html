@@ -12,42 +12,84 @@
 				</ul>
 				<div class="yui-content" id="chi2-CONTENT">
 					<div>
-						<div class="chi2-MainContent">
-							<div class="chi2-MainContentPad">
-								<div>Drop a Patient Set into the input box below, and then click the "View Results" tab to view the 10 most over and under represented facts compared to the entire patient population.</div>
-								<div class="droptrgtlbl">Patient Set:</div>
-								<div class="droptrgt SDX-PRS" id="chi2-PRSDROP">Drop a small Patient Set here</div>
-								<div class="droptrgtlbl">Column Name:</div>
-								<div class="droptrgtlbl"><input type="text" id="chi2-colname" style="float:left; width:160;"></div>
-							</div>
-						</div>
+                                            <div class="chi2-MainContent">
+                                                <!--<div class="chi2-MainContentPad">-->
+                                                <table class="analysis-params">
+                                                    <tr>
+                                                        <td colspan=2>
+                                                            Drag-n-drop patient set into the Compare and Reference (defaults to ALL patients) boxes below, then click the View Results tab to compare them.
+
+                                                            For best results the Compare patient set should be a subset of the Reference patient set.
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>
+                                                            <div class="droptrgtlbl">Compare Patient Set:</div>
+                                                        </th>
+                                                        <td>
+                                                            <div class="droptrgt SDX-PRS" id="chi2-p2-PRSDROP">Drop a small Patient Set here</div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>
+                                                            <div class="droptrgtlbl">Column Name:</div>
+                                                        </th>
+                                                        <td>
+                                                            <div><input type="text" id="chi2-p2-colname" style="width:160;"/></div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td colspan=2>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>
+                                                            <div class="droptrgtlbl">Reference Patient Set:</div>
+                                                        </th>
+                                                        <td>
+                                                            <div class="droptrgt SDX-PRS" id="chi2-p1-PRSDROP">Drop a small Patient Set here (default = ALL patients)</div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th>
+                                                            <div class="droptrgtlbl">Column Name:</div>
+                                                        </th>
+                                                        <td>
+                                                            <div><input type="text" id="chi2-p1-colname" style="width:160;" value="REF_ALL"/></div>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td colspan=2>
+                                                        </td>
+                                                    </tr>
+                                                <!--</div>-->
+                                                </table>
+                                            </div>
 					</div>
 					<div>
 						<div class="chi2-MainContent">
-							<div class="results-directions">Please return to the "Specify Data" tab and select a Patient Set.</div>
+							<div class="results-directions">Please return to the "Specify Data" tab to select reference and comparison patient sets.</div>
 							<div class="results-finished" style="display:none;">
 								<div class="results-header">
-									<table width="100%" cellpadding="0" cellspacing="0">
-									<tr>
-									<td align="left" valign="center">
+                                                                    <table width="100%" cellpadding="0" cellspacing="0">
+                                                                        <tr>
+                                                                            <td align="left" valign="center">
                                                                                 <!-- Note: forms with only one text input will submit when enter is pressed, we don't need a form here -->
 										<!--<form>-->
 										<table class="results-header-pagination" cellpadding="0" cellspacing="0">
-										<tr>
-										<td>size: <input type="text" id="chi2-pgsize" style="width:40px;" disabled></td>
-										<td><input type="button" value="go" id="goButton" class="results-header-btn" disabled></td>
-                                                                                <!--<td>concepts: </td><td><select id="concepts-select"/></td>-->
-										</tr>
+                                                                                    <tr>
+                                                                                        <td>size: <input type="text" id="chi2-pgsize" style="width:40px;" disabled></td>
+                                                                                        <td><input type="button" value="go" id="goButton" class="results-header-btn" disabled></td>
+                                                                                        <!--<td>concepts: </td><td><select id="concepts-select"/></td>-->
+                                                                                        <td><div id="chi2-stats"></div></td>
+                                                                                    </tr>
                                                                                 </table>
 										<!--</form>-->
-									</td>
+                                                                            </td>
 									</tr>
-									</table>
+                                                                    </table>
 								</div>
-                                                                <!-- TODO: display results here -->
-                                                                <div class="results-chi2">
-                                                                    <pre id="df_str" class="results"></pre>
-                                                                </div>
+                                                                <div class="results-chi2"><!-- results go here --></div>
 							</div>
 						</div>
 					</div>
@@ -57,9 +99,10 @@
 								<h1>chi2</h1>
 								<hr size="1" noshade>
 								<h2>Introduction</h2>
-								This plugin displays the most over and under represented facts in a patient cohort compared to the entire patient population.
+								This plugin displays the most over and under represented facts in a patient cohort compared to a reference cohort (default = all patients).
 								<h2>Instructions</h2>
-								Navigate to the "Specify Data" tab. Then, drag and drop a Patient Set onto the input box.
+								Navigate to the "Specify Data" tab. Then, drag and drop a Patient Set onto the "compare" input box. 
+                                                                Optionally, you can also specify a "reference" patient set.
 								Click the "View Results" tab to show a table of the 10 most over and under represented facts observed in the patient set.
 								By default, the first and last ten facts are shown. You can enter a new "size" to change the number of facts shown at one time.
 								<h2>About Us</h2>
