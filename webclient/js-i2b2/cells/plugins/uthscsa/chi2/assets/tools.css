@@ -1,0 +1,225 @@
+#df_suggest { display: hidden }
+#df_str { display: hidden }
+
+table.analysis-params {
+    margin-top: 1em;
+    margin-left: 2em;
+    width: 100%;
+    cellpading: 0;
+    cellspacing: 0;
+}
+table.analysis-params tr th {
+    vertical-align: top; text-align: right; margin-top: 0.5em;
+    padding-bottom: 1em;
+}
+table.analysis-params tr td {
+    padding-bottom: 1em;
+}
+table.analysis-params tr td ul {
+    margin-top: 0; margin-bottom: 0; padding-left: 0;
+}
+table.analysis-params tr td ul li {
+    margin-left: 0; padding-left: 0
+}
+table.analysis-params tr td div.droptrgt {
+    margin-top: 0 !important;
+    margin-left: 2em !important
+}
+
+/*** CSS for main plugin wrapper ***/
+
+#analysis-mainDiv {
+	padding: 0px;
+}
+
+
+
+/*** CSS for tab background ***/
+
+#chi2-TABS DIV.yui-content {
+	background: #FFF;
+}
+
+#chi2-TABS DIV.chi2-MainContent {
+    background:#FFF;
+    border:solid #63758C;
+    border-width:1px 0;
+    overflow:auto;
+    height:100%;
+}
+#chi2-TABS DIV.chi2-MainContentPad {
+    padding:10px 10px;
+}
+
+
+
+/*** CSS for the Specify Data tab ***/
+
+#analysis-mainDiv DIV.droptrgtlbl {
+	padding: 6px 0px;
+	width:80px;
+	text-align:right;
+	float: left;
+	font-weight:bold;
+	color:#666;
+	margin: 15px 10px 0px 0px;
+}
+#analysis-mainDiv DIV.droptrgt {
+	padding: 5px 10px;
+	background: #DEEBEF;
+	margin-top: 15px;
+	text-align:left;
+	border: 1px solid #63758C;
+	width: 80%;
+	overflow:hidden;
+	white-space:nowrap;
+	
+}
+
+.droptrgt .concptItem {
+	padding: 5px 10px;
+	overflow:hidden;
+	white-space:nowrap;
+	display:block;
+	color:#000;
+	text-decoration:none;
+}
+.droptrgt .concptItem:hover {
+	background-color:#FCC;
+}
+
+#analysis-mainDiv DIV.outputOptionsLbl {
+	padding: 6px 0px;
+	width:80px;
+	text-align:right;
+	float: left;
+	font-weight:bold;
+	color:#666;
+	margin: 15px 10px 0px 0px;
+}
+#analysis-mainDiv DIV.outputOptions {
+	padding: 5px 10px;
+	margin-top: 15px;
+	text-align:center;
+	border: 1px solid #63758C;
+	width: 80%;
+	overflow:hidden; 
+}
+#analysis-mainDiv DIV.outputOptions form {
+	margin:0;
+	padding:0;
+}
+#analysis-mainDiv DIV.outputOptions span {
+	margin-right: 15px;
+}
+
+
+
+/*** CSS for the View Results tab ***/
+
+#chi2-TABS DIV.results-directions {
+	padding: 10px;
+	text-align:left;
+}
+#chi2-TABS DIV.results-working {
+	margin:10px;
+	text-align:left;
+}
+#chi2-TABS DIV.results-text {
+	margin:10px;
+}
+#chi2-TABS DIV.results-chi2 {
+	margin:10px;
+}
+#chi2-TABS DIV.results-header {
+	margin:10px;
+}
+#analysis-mainDiv #analysis-InfoPDO TABLE {
+	margin:0 10px 10px 10px;
+	border-collapse:collapse;
+}
+#analysis-mainDiv #analysis-InfoPDO TABLE TH {
+	width:150px;
+	border:solid 1px #63758C;
+	background-color:#CEDBEF;
+	padding:5px;
+}
+#analysis-mainDiv #analysis-InfoPDO TABLE TD {
+	width:300px;
+	overflow:auto;
+	border:solid 1px #63758C;
+	background-color:#DEEBEF;
+	padding:5px;
+}
+#analysis-mainDiv #analysis-InfoPDO .InfoPDO-Request {
+	padding:0px;
+}
+#analysis-mainDiv #analysis-InfoPDO .InfoPDO-Response {
+	padding:0px;
+}
+#analysis-mainDiv #analysis-InfoPDO .originalXML {
+	height:150px;
+	overflow:hidden;
+	padding:0px;
+	margin:0px;
+}
+#analysis-mainDiv #analysis-InfoPDO TABLE TD DIV PRE {
+	margin:0px;
+	width:300px;
+	height:140px;
+	display:block;
+	overflow:scroll;
+	padding:5px;
+}
+
+
+
+/*** CSS for the Plugin Help tab ***/
+
+#chi2-TABS H1 {
+	margin:0 0 10px 0;
+	font-size:16px;
+	color:#42558C;
+	font-weight:bold;
+}
+#chi2-TABS H2 {
+	margin:10px 0 10px 0;
+	font-size:13px;
+	color:#42558C;
+	font-weight:bold;
+}
+#chi2-TABS HR {
+	margin:0;
+}
+DIV.events_box{
+	margin-top: 10px;
+	border: 1px solid #667788;
+	width: 395px;
+	margin-left: 15px;
+}
+
+.runButton{
+	border: 1px solid #667788;
+	background: #6677AA;
+	color: #FFFFFF;
+	font-family: arial,helvetica;
+	font-size: 12px;
+	font-weight: bold;
+	width: 180px;
+	margin-top: 10px;
+	padding-left: 3px;
+	margin-left: 15px;
+	cursor: pointer;
+}
+
+DIV.text{
+	color: #666666;
+	font-weight: bold;
+}
+DIV.results{
+	margin-left: 15px;
+}
+DIV.reportborder{
+	border: 1px solid #667788;
+	width: 50%;
+}
