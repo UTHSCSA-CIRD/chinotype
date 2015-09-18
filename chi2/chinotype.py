@@ -17,7 +17,7 @@ Options:
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
     -o --output         Create an chi2 output file
-    -n limit            Limit to topN over/under represented facts [default: 10]
+    -n limit            Limit to topN over/under represented facts
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
@@ -54,7 +54,7 @@ def config(arguments={}):
         opt['qpsid'] = None
         opt['rpsid'] = None
         opt['to_file'] = False
-        opt['limit'] = 10
+        opt['limit'] = None
     else:
         opt['qmid'] = arguments['-m']
         opt['psid'] = arguments['-p']
@@ -501,6 +501,9 @@ class Chi2:
 
 
     def chi2_output(self, db, colname, ref, pcounts, schema, outfile=None, asJSON=False):
+        limstr = ''
+        if self.limit is not None:
+            limstr = 'where rank <= {0} or revrank <= {0}'.format(self.limit)
         sql = '''
         with cohort as (
             select {0} pat_count from {1} where ccd = 'TOTAL'
@@ -546,8 +549,8 @@ class Chi2:
         from data where ccd = 'TOTAL'
         union all 
         select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
-        from ranked_data where rank <= {3} or revrank <= {3}
-        '''.format(colname, pcounts, schema, self.limit, ref)
+        from ranked_data {3}
+        '''.format(colname, pcounts, schema, limstr, ref)
         cols, rows = do_log_sql(db, sql)
 
         if outfile is not None:
