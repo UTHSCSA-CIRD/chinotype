@@ -93,8 +93,6 @@ TODO: localize jslint exceptions
                 }
                 tabstr += '\n</tr>';
                 var foundMid = false;
-                var stddev = null;
-                var variance = null;
                 for (r=0; r < resp.rows.length; r++) {
                     if (!foundMid && resp.rows[r][resp.cols.length-1] == -1
                     && resp.rows[r][0] != 'TOTAL') {
@@ -105,8 +103,6 @@ TODO: localize jslint exceptions
                     for (c=0; c < resp.cols.length; c++) {
                         var data =  resp.rows[r][c];
                         if (resp.rows[r][0] == 'TOTAL') {
-                            if (c == 6) { stddev = data; }
-                            if (c == 7) { variance = data; }
                             if (c != 0 && c != 2 && c != 4) { data = ''; }
                         } else {
                             if (data == null) { data = ''; }
@@ -119,8 +115,6 @@ TODO: localize jslint exceptions
                 }
                 tabstr += '\n</table>';
                 $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = tabstr;
-                if (isNaN(stddev) || isNaN(variance)) { $j('#chi2-stats').text(''); }
-                else { $j('#chi2-stats').text('stdev.p=' + stddev.toFixed(5) + ', var.p=' + variance.toFixed(5)); }
                 // Load the concept category drop down
                 //  TODO
                

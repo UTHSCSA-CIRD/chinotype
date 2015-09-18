@@ -542,8 +542,7 @@ class Chi2:
             where ccd != 'TOTAL'
             order by rank
         ) 
-        --select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
-        select ccd, name, {4}, frc_{4}, {0}, frc_{0}, (select stddev(chisq) from data) chisq, (select variance(chisq) from data) dir
+        select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
         from data where ccd = 'TOTAL'
         union all 
         select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
