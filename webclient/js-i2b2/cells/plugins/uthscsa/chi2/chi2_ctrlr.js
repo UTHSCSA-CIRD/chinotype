@@ -140,7 +140,7 @@ TODO: localize jslint exceptions
 
     exports.model = undefined;
     function Init(loadedDiv) {
-	var chi2 = tw.mkWebPostable('/cgi-bin/chi2_tabbed.cgi', Ajax);
+	var chi2 = tw.mkWebPostable('/cgi-bin/chi2.cgi', Ajax);
         //alert('chi here 3');
 	var dftool = new DFTool($j(loadedDiv), chi2);
         //alert('chi here 4');
