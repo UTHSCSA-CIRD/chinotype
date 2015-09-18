@@ -6,11 +6,14 @@ Create counts and prevalences for ranking patient cohorts
 Usage:
    driver.py [options] -m QMID
    driver.py [options] -p PSID
+   driver.py [options] -t PSID -r PSID
 
 Options:
     -h --help           Show this screen
-    -m QMID             Using query master ID (QMID, default)
-    -p PSID             Using patient set ID  (PSID)
+    -m QMID             Query master ID to test, TOTAL population as reference
+    -p PSID             Patient set ID to test, TOTAL population as reference
+    -t PSID             Patient set ID to test
+    -r PSID             Patient set ID for reference
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
     -o --output         Create an chi2 output file
@@ -19,18 +22,16 @@ Options:
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
 
-Configure database users in config file and set password in keyring a la
-   $ keyring set oracle://crc_host/crc_service_name crc_user
-   $ keyring set oracle://chi_host/chi_service_name chi_user
+PSID is the result instance ID (from i2b2 QT tables). 
 '''
 from sys import argv
 from docopt import docopt
 from ConfigParser import SafeConfigParser
 import cx_Oracle as cx
 from contextlib import contextmanager
-#import keyring
 import logging
 import json
+import re
 
 log = logging.getLogger(__name__)
 config_default = './config.ini'
@@ -50,19 +51,21 @@ def config(arguments={}):
     if arguments == {}:
         opt['qmid'] = None
         opt['psid'] = None
+        opt['qpsid'] = None
+        opt['rpsid'] = None
         opt['to_file'] = False
         opt['limit'] = 10
     else:
         opt['qmid'] = arguments['-m']
         opt['psid'] = arguments['-p']
+        opt['qpsid'] = arguments['-t']
+        opt['rpsid'] = arguments['-r']
         opt['to_file'] = arguments['--output']
         opt['limit'] = arguments['-n']
-    log.debug('opt:\n{0}'.format(opt))
     return opt
 
 
 class Chi2:
-
     def __init__(self, arguments={}):
         opt = config(arguments)
         db=opt['database']
@@ -82,6 +85,8 @@ class Chi2:
         self.qrid = None
         self.psid = opt['psid']
         self.psid_done = False
+        self.psid1 = opt['qpsid']
+        self.psid2 = opt['rpsid']
         self.chi_host = db['chi_host']
         self.chi_port = db['chi_port']
         self.chi_user = db['chi_user']
@@ -96,17 +101,17 @@ class Chi2:
 
 
     def debug_dbopt(self, db):
-        log.debug('host={0}'.format(db['crc_host']))
-        log.debug('port={0}'.format(db['crc_port']))
-        log.debug('service={0}'.format(db['crc_service_name']))
-        log.debug('user={0}'.format(db['crc_user']))
-        log.debug('schema={0}'.format(db['schema']))
-        log.debug('chi_host={0}'.format(db['chi_host']))
-        log.debug('chi_port={0}'.format(db['chi_port']))
-        log.debug('chi_service={0}'.format(db['chi_service_name']))
-        log.debug('chi_user={0}'.format(db['chi_user']))
-        log.debug('chi_pconcepts={0}'.format(db['chi_pconcepts']))
-        log.debug('chi_pcounts={0}'.format(db['chi_pcounts']))
+        log.debug('data host={0}'.format(db['crc_host']))
+        log.debug('data port={0}'.format(db['crc_port']))
+        log.debug('data service={0}'.format(db['crc_service_name']))
+        log.debug('data user={0}'.format(db['crc_user']))
+        log.debug('chi host={0}'.format(db['chi_host']))
+        log.debug('chi port={0}'.format(db['chi_port']))
+        log.debug('chi service={0}'.format(db['chi_service_name']))
+        log.debug('chi user={0}'.format(db['chi_user']))
+        log.debug('chi pconcepts={0}'.format(db['chi_pconcepts']))
+        log.debug('chi pcounts={0}'.format(db['chi_pcounts']))
+        log.debug('data schema={0}'.format(db['schema']))
 
 
     def getCrcOpt(self):
@@ -118,11 +123,8 @@ class Chi2:
 
 
     def getOracleDBI(self, host, port, service, user, pw, temp_table=None):
-        # TODO: remove all the keyring stuff
-        #log.debug('keyring get oracle://{0}/{1} {2}'.format(host, service, user))
-        #log.debug('*******')
-        #pw = keyring.get_password('oracle://{0}/{1}'.format(host, service), user)
         dsn = cx.makedsn(host, int(port), service_name=service)
+        log.debug(dsn)
         def theDB(it=[]):
             if not it:
                 it.append(cx.connect(user, pw, dsn))
@@ -156,7 +158,7 @@ class Chi2:
             cols, rows = do_log_sql(db, sql)
             if len(rows) == 0:
                 str = 'ERROR, QMID {0} has no patient set result instance'.format(self.qmid)
-                log.error(str)
+                #log.error(str)
                 return str
             qdata = dict(zip([c.lower() for c in cols], list(rows[0])))
             log.debug('qdata={0}'.format(qdata))
@@ -175,7 +177,32 @@ class Chi2:
         return self.runChi()
 
 
-    def runPSID(self, psid, asJSON=False, limit=None):
+    def runPSID_p2(self, referencePatSet, testPatSet, asJSON=False, limit=None):
+        if referencePatSet == testPatSet:
+            status = 'Job canceled, identical patient sets'
+            if asJSON:
+                jstr = json.dumps({'cols': [], 'rows': [], 'status': status})
+            else: 
+                jstr = status
+        else:
+            # do the reference patient set first
+            self.resetPS(self.psid1)
+            jstr = self.runPSID(referencePatSet, asJSON, limit, None)
+            ref = self.chi_name
+            # then do the test patient set, using the reference column name
+            self.resetPS(self.psid2)
+            jstr = self.runPSID(testPatSet, asJSON, limit, ref)
+        return jstr
+
+    def resetPS(self, psid):
+        self.psid = psid
+        self.psid_done = False
+        self.qmid = None
+        self.qiid = None
+        self.qrid = None
+
+
+    def runPSID(self, psid, asJSON=False, limit=None, ref='TOTAL'):
         '''Run chi2 for an i2b2 patient set id'''
         if limit is not None:
             self.limit = limit
@@ -199,6 +226,7 @@ class Chi2:
                 select column_name from all_tab_columns
                 where 1=1 {0} {1}
                 and column_name like '%_R{2}'
+                order by column_name desc
                 '''.format(owner, table_name, psid)
                 cols, rows = do_log_sql(db, sql)
                 if len(rows) > 0:
@@ -226,28 +254,33 @@ class Chi2:
                 '''.format(self.schema, psid)
                 cols, rows = do_log_sql(db, sql)
                 if len(rows) == 0:
-                    str = 'ERROR, patient set (PSID={0}) not found in QT tables'.format(self.qmid)
-                    log.error(str)
+                    str = 'ERROR, patient set (PSID={0}) not found in QT tables'.format(psid)
+                    #log.error(str)
                     return str
                 qdata = dict(zip([c.lower() for c in cols], list(rows[0])))
                 log.debug('qdata={0}'.format(qdata))
-
-                sql = '''
-                    select distinct patient_num
-                    from {0}.qt_patient_set_collection
-                    where result_instance_id = {1}
-                '''.format(self.schema, qdata['result_instance_id'])
-                cols, rows = do_log_sql(db, sql)
-                self.pats = rows
                 self.qmid = qdata['query_master_id']
                 self.qiid = qdata['query_instance_id']
                 self.qrid = qdata['result_instance_id']
                 self.chi_name = 'M{0}_I{1}_R{2}'.format(self.qmid, self.qiid, self.qrid)
+            else:
+                match = re.match('M(?P<psid>\d+)_I(?P<qiid>\d+)_R(?P<qrid>\d+)', self.chi_name)
+                self.qmid = match.group('psid')
+                self.qiid = match.group('qiid')
+                self.qrid = match.group('qrid')
 
-            return self.runChi(asJSON)
+            sql = '''
+                select distinct patient_num
+                from {0}.qt_patient_set_collection
+                where result_instance_id = {1}
+            '''.format(self.schema, self.qrid)
+            cols, rows = do_log_sql(db, sql)
+            self.pats = rows
+
+            return self.runChi(asJSON, ref)
 
 
-    def runChi(self, asJSON=False):
+    def runChi(self, asJSON=False, ref='TOTAL'):
         pats = self.pats
         schema = self.schema
         pconcepts = self.pconcepts
@@ -305,7 +338,7 @@ class Chi2:
                 if col_name != '':
                     self.chi_name = col_name # already done, but col name may differ
                     runChi = False
-            elif self.psid is not None and self.checkPatset():
+            elif self.psid is not None and self.psid_done:
                 runChi = False              # already done
             chi_name = self.chi_name
 
@@ -372,7 +405,10 @@ class Chi2:
             fout = None
             if self.to_file:
                 fout = outfile
-            resp = self.chi2_output(db, chi_name, pcounts, schema, fout, asJSON)
+            if ref != None:
+                resp = self.chi2_output(db, chi_name, ref, pcounts, schema, fout, asJSON)
+            else:
+                resp = ''
 
         log.info('patient count={0}'.format(len(pats)))
         log.info('chi_pconcepts={0}'.format(pconcepts))
@@ -432,11 +468,6 @@ class Chi2:
             raise
 
 
-    def checkPatset(self):
-        '''Check if results already exists for PSID'''
-        return self.psid_done
-
-
     def dbmgr(self, connect, temp_table=None):
         '''Make a context manager that yields cursors, given connect access.
         '''
@@ -469,19 +500,30 @@ class Chi2:
         return dbtrx
 
 
-    def chi2_output(self, db, colname, pcounts, schema, outfile=None, asJSON=False):
+    def chi2_output(self, db, colname, ref, pcounts, schema, outfile=None, asJSON=False):
         sql = '''
         with cohort as (
             select {0} pat_count from {1} where ccd = 'TOTAL'
         )
         , data as (
             select ccd, name
-            , total
-            , frc_total 
+            , {4}
+            , frc_{4} 
             , {0}
             , frc_{0}
-            , power({0} - (cohort.pat_count * frc_total), 2) / (cohort.pat_count * frc_total) chisq
-            , case when frc_total < frc_{0} then 1 else -1 end dir
+            , power({0} - (cohort.pat_count * frc_{4}), 2) / (cohort.pat_count * frc_{4}) chisq
+            /*
+            , case
+                when frc_{4} = frc_{0} then
+                    0
+                when frc_{4} > 0 then
+                    power({0} - (cohort.pat_count * frc_{4}), 2) / (cohort.pat_count * frc_{4})
+                else
+                    null
+                end chisq
+            */
+            --, case when frc_{4} < frc_{0} then 1 else -1 end dir
+            , case when frc_{4} = frc_{0} then 0 when frc_{4} < frc_{0} then 1 else -1 end dir
             from {1}
             left join (
                 select concept_cd, min(name_char) name
@@ -489,6 +531,8 @@ class Chi2:
                 group by concept_cd
             ) cd on cd.concept_cd = ccd
             , cohort
+            where frc_{4} > 0
+            --where frc_{4} > 0 or frc_{0} > 0
         )
         , ranked_data as (
             select data.*
@@ -498,12 +542,13 @@ class Chi2:
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select ccd, name, total, frc_total, {0}, frc_{0}, chisq, dir
+        --select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
+        select ccd, name, {4}, frc_{4}, {0}, frc_{0}, (select stddev(chisq) from data) chisq, (select variance(chisq) from data) dir
         from data where ccd = 'TOTAL'
         union all 
-        select ccd, name, total, frc_total, {0}, frc_{0}, chisq, dir
+        select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
         from ranked_data where rank <= {3} or revrank <= {3}
-        '''.format(colname, pcounts, schema, self.limit)
+        '''.format(colname, pcounts, schema, self.limit, ref)
         cols, rows = do_log_sql(db, sql)
 
         if outfile is not None:
@@ -553,11 +598,11 @@ def do_log_sql(cur, sql, params=[]):
 
 
 if __name__=='__main__':
-    #TODO: make docopt require one of these
     args = docopt(__doc__, argv=argv[1:])
     if args['-p']:
-        log.debug(Chi2(args).runPSID(args['-p']))
+        log.info(Chi2(args).runPSID(args['-p']))
     elif args['-m']:
-        log.debug(Chi2(args).runQMID(args['-m']))
-
+        log.info(Chi2(args).runQMID(args['-m']))
+    elif args['-t'] and args['-r']:
+        log.info(Chi2(args).runPSID_p2(args['-r'], args['-t']))
 
