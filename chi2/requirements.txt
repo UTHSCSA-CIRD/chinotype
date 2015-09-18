@@ -1,0 +1,49 @@
+# (c) 2012 University of Kansas Medical Center
+# http://informatics.kumc.edu/
+#
+# Presuming the Oracle Instant Client is installed...
+#
+# Usage:
+#   ORACLE_HOME=/opt/oracle/... pip install -r requirements.txt
+# Ref:
+# https://pip.pypa.io/en/latest/user_guide.html#requirements-files
+# 
+
+argh
+
+# We use an RPM package to manage cx-Oracle
+# cx-Oracle==5.1.3
+--find-links wheelhouse
+
+# requires ConfigRd.items() introduced in b6744e1ba19f
+# TODO: actually release blacknightcap
+#blacknightcap==0.1 # BOS, install this one MANUALLY
+
+Paste==1.7.5.1
+# patched for eav rec_type
+--find-links https://github.com/dckc/PyCap/archive/master.zip#egg=PyCap
+# perhaps
+# pip wheel git+https://github.com/dckc/PyCap.git#egg=PyCap
+# or
+# pip wheel https://github.com/dckc/PyCap/archive/master.zip
+PyCap
+
+SQLAlchemy==0.9.7
+WebTest==2.0.15
+
+# indirect dependencies
+argparse==1.2.1
+beautifulsoup4==4.3.2
+six==1.7.3
+waitress==0.8.9
+WebOb==1.4
+ordereddict
+
+# for chi2
+wsgiref==0.1.2
+mechanize==0.2.5
+
+# uthscsa chi2notypes driver
+docopt==0.6.2
+#keyring==3.7
+cx_Oracle

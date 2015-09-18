@@ -1,23 +1,26 @@
 [database]
-; crc user needs grants to select from schema
+; crc user needs the follpwing grants:
 ;   grant select on i2b2demodata.qt_query_result_instance to data_builder;
 ;   grant select on i2b2demodata.qt_query_instance to data_builder;
 ;   grant select on i2b2demodata.qt_query_master to data_builder;
+;   grant select on i2b2demodata.qt_patient_set_collection to data_builder;
 crc_host=localhost
 crc_port=1234
 crc_service_name=service_name
 crc_user=data_builder
+crc_pw=SEKRET_PW_GOES_HERE
 
 ; staging, user needs grants to create/alter/select on pconcepts, pcounts
 chi_host=localhost
 chi_port=1234
 chi_service_name=service_name
 chi_user=bos
+chi_pw=SEKRET_PW_GOES_HERE
 chi_pconcepts=schema.table_name
 chi_pcounts=schema.table_name
+
 ; schema for both crc and staging
 schema=i2b2demodata
 
-; passwords should be set in keyring, a la
-;  $ keyring set oracle://crc_host/crc_service_name crc_user
-;  $ keyring set oracle://chi_host/chi_service_name chi_user
+[output]
+csv=output.csv

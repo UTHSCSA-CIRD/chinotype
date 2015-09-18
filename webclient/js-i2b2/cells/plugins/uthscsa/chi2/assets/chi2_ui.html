@@ -1,0 +1,80 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<body>
+
+		<div id='analysis-mainDiv'>
+
+			<div id="chi2-TABS" class="yui-navset">
+				<ul class="yui-nav">
+					<li id="chi2-TAB0" class="selected"><a href="#chi2-TAB0"><em>Specify Data</em></a></li>
+					<li id="chi2-TAB1"><a href="#chi2-TAB1"><em>View Results</em></a></li>
+					<li id="chi2-TAB2"><a href="#chi2-TAB2"><em>Plugin Help</em></a></li>
+				</ul>
+				<div class="yui-content" id="chi2-CONTENT">
+					<div>
+						<div class="chi2-MainContent">
+							<div class="chi2-MainContentPad">
+								<div>Drop a Patient Set into the input box below, and then click the "View Results" tab to view the 10 most over and under represented facts compared to the entire patient population.</div>
+								<div class="droptrgtlbl">Patient Set:</div>
+								<div class="droptrgt SDX-PRS" id="chi2-PRSDROP">Drop a small Patient Set here</div>
+								<div class="droptrgtlbl">Column Name:</div>
+								<div class="droptrgtlbl"><input type="text" id="chi2-colname" style="float:left; width:160;"></div>
+							</div>
+						</div>
+					</div>
+					<div>
+						<div class="chi2-MainContent">
+							<div class="results-directions">Please return to the "Specify Data" tab and select a Patient Set.</div>
+							<div class="results-finished" style="display:none;">
+								<div class="results-header">
+									<table width="100%" cellpadding="0" cellspacing="0">
+									<tr>
+									<td align="left" valign="center">
+                                                                                <!-- Note: forms with only one text input will submit when enter is pressed, we don't need a form here -->
+										<!--<form>-->
+										<table class="results-header-pagination" cellpadding="0" cellspacing="0">
+										<tr>
+										<td>size: <input type="text" id="chi2-pgsize" style="width:40px;" disabled></td>
+										<td><input type="button" value="go" id="goButton" class="results-header-btn" disabled></td>
+                                                                                <!--<td>concepts: </td><td><select id="concepts-select"/></td>-->
+										</tr>
+                                                                                </table>
+										<!--</form>-->
+									</td>
+									</tr>
+									</table>
+								</div>
+                                                                <!-- TODO: display results here -->
+                                                                <div class="results-chi2">
+                                                                    <pre id="df_str" class="results"></pre>
+                                                                </div>
+							</div>
+						</div>
+					</div>
+					<div>
+						<div class="chi2-MainContent">
+							<div class="chi2-MainContentPad">
+								<h1>chi2</h1>
+								<hr size="1" noshade>
+								<h2>Introduction</h2>
+								This plugin displays the most over and under represented facts in a patient cohort compared to the entire patient population.
+								<h2>Instructions</h2>
+								Navigate to the "Specify Data" tab. Then, drag and drop a Patient Set onto the input box.
+								Click the "View Results" tab to show a table of the 10 most over and under represented facts observed in the patient set.
+								By default, the first and last ten facts are shown. You can enter a new "size" to change the number of facts shown at one time.
+								<h2>About Us</h2>
+								This plugin was created by Angela Bos and Alex Bokov, PhD.
+								<h2>Terms of Use</h2>
+								This plugin may be used free of charge per the <a href="http://www.gnu.org/licenses/gpl-3.0.en.html">GPL</a>.
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+
+		</div>
+
+
+	</body>
+</html>
