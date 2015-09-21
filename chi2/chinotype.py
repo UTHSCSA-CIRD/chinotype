@@ -51,14 +51,14 @@ def config(arguments={}):
     if arguments == {}:
         opt['qmid'] = None
         opt['psid'] = None
-        opt['qpsid'] = None
+        opt['tpsid'] = None
         opt['rpsid'] = None
         opt['to_file'] = False
         opt['limit'] = None
     else:
         opt['qmid'] = arguments['-m']
         opt['psid'] = arguments['-p']
-        opt['qpsid'] = arguments['-t']
+        opt['tpsid'] = arguments['-t']
         opt['rpsid'] = arguments['-r']
         opt['to_file'] = arguments['--output']
         opt['limit'] = arguments['-n']
@@ -85,8 +85,8 @@ class Chi2:
         self.qrid = None
         self.psid = opt['psid']
         self.psid_done = False
-        self.psid1 = opt['qpsid']
-        self.psid2 = opt['rpsid']
+        self.tpsid = opt['tpsid']
+        self.rpsid = opt['rpsid']
         self.chi_host = db['chi_host']
         self.chi_port = db['chi_port']
         self.chi_user = db['chi_user']
@@ -98,6 +98,7 @@ class Chi2:
         self.pats = []
         self.out_json = None
         self.limit = opt['limit']
+        self.status = ''
 
 
     def debug_dbopt(self, db):
@@ -178,21 +179,24 @@ class Chi2:
 
 
     def runPSID_p2(self, referencePatSet, testPatSet, asJSON=False, limit=None):
-        if referencePatSet == testPatSet:
-            status = 'Job canceled, identical patient sets'
+        self.rpsid = referencePatSet
+        self.tpsid = testPatSet
+        if self.rpsid == self.tpsid:
+            self.status = 'Job canceled, identical patient sets'
             if asJSON:
-                jstr = json.dumps({'cols': [], 'rows': [], 'status': status})
-            else: 
-                jstr = status
+                self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
+        elif not self.checkIntersection():
+            if asJSON:
+                self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         else:
             # do the reference patient set first
-            self.resetPS(self.psid1)
-            jstr = self.runPSID(referencePatSet, asJSON, limit, None)
+            self.resetPS(self.tpsid)
+            self.runPSID(self.rpsid, asJSON, limit, None)
             ref = self.chi_name
             # then do the test patient set, using the reference column name
-            self.resetPS(self.psid2)
-            jstr = self.runPSID(testPatSet, asJSON, limit, ref)
-        return jstr
+            self.resetPS(self.rpsid)
+            self.runPSID(self.tpsid, asJSON, limit, ref)
+        return self.status
 
     def resetPS(self, psid):
         self.psid = psid
@@ -468,6 +472,29 @@ class Chi2:
             raise
 
 
+    def checkIntersection(self):
+        host, port, service, user, pw = self.getCrcOpt()
+        dbi = self.getOracleDBI(host, port, service, user, pw)
+        with dbi() as db:
+            try:
+                sql = '''
+                select count(*) from (
+                    select patient_num from {0}.qt_patient_set_collection
+                    where result_instance_id = {1} -- test
+                    minus
+                    select patient_num from {0}.qt_patient_set_collection
+                    where result_instance_id = {2} -- ref
+                )
+                '''.format(self.schema, self.tpsid, self.rpsid)
+                cols, rows = do_log_sql(db, sql)
+                if rows[0][0] > 0:
+                    self.status = 'Job canceled, all patients in test subset must be in the reference set'
+                    return False
+            except:
+                raise
+        return True
+
+
     def dbmgr(self, connect, temp_table=None):
         '''Make a context manager that yields cursors, given connect access.
         '''
@@ -571,9 +598,10 @@ class Chi2:
 
         status = 'Done, chi success!'
         if asJSON:
-            jstr = json.dumps({'cols': cols, 'rows': rows, 'status': status})
-            return jstr
-        return status
+            self.status = json.dumps({'cols': cols, 'rows': rows, 'status': status})
+        else:
+            self.status = status
+        return self.status
 
 
 def do_log_sql(cur, sql, params=[]): 
