@@ -18,6 +18,7 @@ Options:
     -c --config=FILE    Configuration file [default: config.ini]
     -o --output         Create an chi2 output file
     -n limit            Limit to topN over/under represented facts
+    -f PATTERN          Filter output concept codes by PATTERN (e.g. i2b2metadata.SCHEMES.C_KEY)
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
@@ -55,6 +56,7 @@ def config(arguments={}):
         opt['rpsid'] = None
         opt['to_file'] = False
         opt['limit'] = None
+        opt['filter'] = None
     else:
         opt['qmid'] = arguments['-m']
         opt['psid'] = arguments['-p']
@@ -62,6 +64,7 @@ def config(arguments={}):
         opt['rpsid'] = arguments['-r']
         opt['to_file'] = arguments['--output']
         opt['limit'] = arguments['-n']
+        opt['filter'] = arguments['-f']
     return opt
 
 
@@ -98,6 +101,7 @@ class Chi2:
         self.pats = []
         self.out_json = None
         self.limit = opt['limit']
+        self.filter = opt['filter']
         self.status = ''
 
 
@@ -541,6 +545,10 @@ class Chi2:
         limstr = ''
         if self.limit is not None:
             limstr = 'where rank <= {0} or revrank <= {0}'.format(self.limit)
+        filter=''
+        if self.filter is not None:
+            filter = 'and ccd like \'{0}%\''.format(self.filter)
+            log.info('Filtering output where ccd like \'{0}\''.format(self.filter))
         sql = '''
         with cohort as (
             select {0} pat_count from {1} where ccd = 'TOTAL'
@@ -574,7 +582,7 @@ class Chi2:
             , row_number() over (order by chisq*dir desc) as rank
             , row_number() over (order by chisq*dir asc) as revrank    
             from data   
-            where ccd != 'TOTAL'
+            where ccd != 'TOTAL' {4}
             order by rank
         ) 
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
@@ -582,7 +590,7 @@ class Chi2:
         union all 
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
-        '''.format(colname, pcounts, limstr, ref)
+        '''.format(colname, pcounts, limstr, ref, filter)
         cols, rows = do_log_sql(db, sql)
 
         if outfile is not None:
