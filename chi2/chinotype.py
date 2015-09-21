@@ -190,20 +190,20 @@ class Chi2:
                 self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         else:
             # do the reference patient set first
-            self.resetPS(self.tpsid)
+            self.resetPS()
             self.runPSID(self.rpsid, asJSON, limit, None)
             ref = self.chi_name
             # then do the test patient set, using the reference column name
-            self.resetPS(self.rpsid)
+            self.resetPS()
             self.runPSID(self.tpsid, asJSON, limit, ref)
         return self.status
 
-    def resetPS(self, psid):
-        self.psid = psid
+    def resetPS(self):
         self.psid_done = False
         self.qmid = None
         self.qiid = None
         self.qrid = None
+        self.chi_name = None
 
 
     def runPSID(self, psid, asJSON=False, limit=None, ref='TOTAL'):
@@ -325,15 +325,24 @@ class Chi2:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
                 sql = '''
                 create table {0} as
-                select ccd
-                , count(distinct pn) total
-                , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
-                from {1} group by ccd
+                select ccd, name, total, frc_total 
+                from (
+                    select ccd
+                    , count(distinct pn) total
+                    , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+                    from {1} 
+                    group by ccd
+                ) chicon
+                left join (
+                    select concept_cd, min(name_char) name
+                    from {2}.concept_dimension
+                    group by concept_cd
+                ) cd on cd.concept_cd = chicon.ccd
                 union all
-                select 'TOTAL' ccd
+                select 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
-                '''.format(pcounts, pconcepts)
+                '''.format(pcounts, pconcepts, schema)
                 cols, rows = do_log_sql(db, sql)
 
             runChi = True
@@ -348,6 +357,7 @@ class Chi2:
 
             if runChi:
                 # make a temp table of patient set for query chi_name=m###_r###_i###
+                log.info('Creating chi columns for PSID {0}'.format(self.psid))
                 log.debug('Creating temp table for patient set...')
                 sql = '''
                     create table {0} as 
@@ -536,33 +546,28 @@ class Chi2:
             select {0} pat_count from {1} where ccd = 'TOTAL'
         )
         , data as (
-            select ccd, name
-            , {4}
-            , frc_{4} 
+            select ccd
+            , name
+            , {3}
+            , frc_{3} 
             , {0}
             , frc_{0}
-            , power({0} - (cohort.pat_count * frc_{4}), 2) / (cohort.pat_count * frc_{4}) chisq
-            /*
+            , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
+            /* TODO: show rows where concepts in ref but not test patient set ?????
             , case
-                when frc_{4} = frc_{0} then
+                when frc_{3} = frc_{0} then
                     0
-                when frc_{4} > 0 then
-                    power({0} - (cohort.pat_count * frc_{4}), 2) / (cohort.pat_count * frc_{4})
+                when frc_{3} > 0 then
+                    power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3})
                 else
                     null
                 end chisq
             */
-            --, case when frc_{4} < frc_{0} then 1 else -1 end dir
-            , case when frc_{4} = frc_{0} then 0 when frc_{4} < frc_{0} then 1 else -1 end dir
+            , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
             from {1}
-            left join (
-                select concept_cd, min(name_char) name
-                from {2}.concept_dimension
-                group by concept_cd
-            ) cd on cd.concept_cd = ccd
             , cohort
-            where frc_{4} > 0
-            --where frc_{4} > 0 or frc_{0} > 0
+            where frc_{3} > 0
+            --where frc_{3} > 0 or frc_{0} > 0
         )
         , ranked_data as (
             select data.*
@@ -572,12 +577,12 @@ class Chi2:
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
+        select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from data where ccd = 'TOTAL'
         union all 
-        select ccd, name, {4}, frc_{4}, {0}, frc_{0}, chisq, dir
-        from ranked_data {3}
-        '''.format(colname, pcounts, schema, limstr, ref)
+        select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
+        from ranked_data {2}
+        '''.format(colname, pcounts, limstr, ref)
         cols, rows = do_log_sql(db, sql)
 
         if outfile is not None:
