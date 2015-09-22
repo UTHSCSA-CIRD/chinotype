@@ -349,6 +349,12 @@ class Chi2:
                 '''.format(pcounts, pconcepts, schema)
                 cols, rows = do_log_sql(db, sql)
 
+                sql = '''
+                create index {0}_idx
+                on {0} (ccd)
+                '''.format(pcounts)
+                cols, rows = do_log_sql(db, sql)
+
             runChi = True
             if self.qmid is not None:
                 col_name = self.checkRerunQMID(db)
