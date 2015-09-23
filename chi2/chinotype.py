@@ -4,9 +4,9 @@ Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
 Usage:
-   driver.py [options] -m QMID
-   driver.py [options] -p PSID
-   driver.py [options] -t PSID -r PSID
+   driver.py [options][-f PATTERN]... -m QMID
+   driver.py [options][-f PATTERN]... -p PSID
+   driver.py [options][-f PATTERN]... -t PSID -r PSID
 
 Options:
     -h --help           Show this screen
@@ -64,7 +64,7 @@ def config(arguments={}):
         opt['rpsid'] = arguments['-r']
         opt['to_file'] = arguments['--output']
         opt['limit'] = arguments['-n']
-        opt['filter'] = arguments['-f']
+        opt['filter'] = list(set(arguments['-f']))  # set removes duplicates
     return opt
 
 
@@ -83,6 +83,7 @@ class Chi2:
         self.crc_service =  db['crc_service_name']
         self.crc_pw = db['crc_pw']
         self.schema = db['schema']
+        self.metaschema = db['metaschema']
         self.qmid = opt['qmid']
         self.qiid = None
         self.qrid = None
@@ -106,17 +107,18 @@ class Chi2:
 
 
     def debug_dbopt(self, db):
-        log.debug('data host={0}'.format(db['crc_host']))
-        log.debug('data port={0}'.format(db['crc_port']))
-        log.debug('data service={0}'.format(db['crc_service_name']))
-        log.debug('data user={0}'.format(db['crc_user']))
-        log.debug('chi host={0}'.format(db['chi_host']))
-        log.debug('chi port={0}'.format(db['chi_port']))
-        log.debug('chi service={0}'.format(db['chi_service_name']))
-        log.debug('chi user={0}'.format(db['chi_user']))
-        log.debug('chi pconcepts={0}'.format(db['chi_pconcepts']))
-        log.debug('chi pcounts={0}'.format(db['chi_pcounts']))
-        log.debug('data schema={0}'.format(db['schema']))
+        log.debug('      data host={0}'.format(db['crc_host']))
+        log.debug('      data port={0}'.format(db['crc_port']))
+        log.debug('   data service={0}'.format(db['crc_service_name']))
+        log.debug('      data user={0}'.format(db['crc_user']))
+        log.debug('       chi host={0}'.format(db['chi_host']))
+        log.debug('       chi port={0}'.format(db['chi_port']))
+        log.debug('    chi service={0}'.format(db['chi_service_name']))
+        log.debug('       chi user={0}'.format(db['chi_user']))
+        log.debug('  chi pconcepts={0}'.format(db['chi_pconcepts']))
+        log.debug('    chi pcounts={0}'.format(db['chi_pcounts']))
+        log.debug('    data schema={0}'.format(db['schema']))
+        log.debug('data metaschema={0}'.format(db['metaschema']))
 
 
     def getCrcOpt(self):
@@ -329,9 +331,14 @@ class Chi2:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
                 sql = '''
                 create table {0} as
-                select ccd, name, total, frc_total 
+                select prefix, ccd, name, total, frc_total 
                 from (
                     select ccd
+                    , case 
+                        when ccd like 'NAACCR|%' then 'NAACCR'
+                        when instr(ccd, ':') > 0 then substr(ccd, 1, instr(ccd, ':')-1)
+                        else ccd
+                    end prefix
                     , count(distinct pn) total
                     , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
                     from {1} 
@@ -342,8 +349,9 @@ class Chi2:
                     from {2}.concept_dimension
                     group by concept_cd
                 ) cd on cd.concept_cd = chicon.ccd
+
                 union all
-                select 'TOTAL' ccd, '' name
+                select 'TOTAL' prefix, 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
                 '''.format(pcounts, pconcepts, schema)
@@ -547,20 +555,33 @@ class Chi2:
         return dbtrx
 
 
+    def getFilterSql(self):
+        patterns = self.filter or []
+        sql = 'select c_name from {0}.schemes'.format(self.metaschema)
+        for p in range(0, len(patterns)):
+            if p == 0: sql += '\nwhere 1=0'
+            sql += '\nor c_key like :{0} || \'%\''.format(p)
+        return sql
+
+
     def chi2_output(self, db, colname, ref, pcounts, schema, outfile=None, asJSON=False):
         limstr = ''
         if self.limit is not None:
             limstr = 'where rank <= {0} or revrank <= {0}'.format(self.limit)
-        filter=''
-        if self.filter is not None:
-            filter = 'and ccd like \'{0}%\''.format(self.filter)
-            log.info('Filtering output where ccd like \'{0}\''.format(self.filter))
+        filterStr = self.getFilterSql()
+        if self.filter:
+            cols, rows = do_log_sql(db, filterStr, self.filter)
+            log.info('Filters: {0}'.format(self.filter))
+            log.info('Applied filters prefixes: {0}'.format([r[0] for r in rows]))
         sql = '''
-        with cohort as (
+        with patterns as (
+            {4}
+        )
+        , cohort as (
             select {0} pat_count from {1} where ccd = 'TOTAL'
         )
         , data as (
-            select ccd
+            select prefix, ccd
             , name
             , {3}
             , frc_{3} 
@@ -588,16 +609,17 @@ class Chi2:
             , row_number() over (order by chisq*dir desc) as rank
             , row_number() over (order by chisq*dir asc) as revrank    
             from data   
-            where ccd != 'TOTAL' {4}
+            join patterns on data.prefix = patterns.c_name 
+            where ccd != 'TOTAL'
             order by rank
         ) 
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from data where ccd = 'TOTAL'
-        union all 
+        union all
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
-        '''.format(colname, pcounts, limstr, ref, filter)
-        cols, rows = do_log_sql(db, sql)
+        '''.format(colname, pcounts, limstr, ref, filterStr)
+        cols, rows = do_log_sql(db, sql, self.filter or [])
 
         if outfile is not None:
             quote = ['CCD', 'NAME']
@@ -627,7 +649,7 @@ def do_log_sql(cur, sql, params=[]):
     '''Execute sql on given connection and log it
     '''
     cols, rows = None, None
-    if len(params) > 1:
+    if len(params) > 1 and sql.strip().lower().startswith('insert'):
         log.debug('executemany: {0}'.format(sql))
         cursor = cur.executemany(sql, params)
     else:
