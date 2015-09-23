@@ -67,7 +67,8 @@ TODO: localize jslint exceptions
 		backend: 'chi2',
 		patient_set_1: pset1,
 		patient_set_2: this.pw2.pset_id(this.prs2),
-                pgsize: exports.model.pgsize
+                pgsize: exports.model.pgsize,
+                concepts: exports.model.concepts
 	    };
 	};
 
@@ -81,7 +82,7 @@ TODO: localize jslint exceptions
             }
             else {
                 var tabstr = '<table id="chi2-result-tbl" border="1" border-collapse="collapse">';
-                var r, c;
+                var r, c, p;
                 tabstr += '\n<tr>';
                 for (c=0; c < resp.cols.length; c++) {
                     var data = resp.cols[c]; 
@@ -115,22 +116,25 @@ TODO: localize jslint exceptions
                 }
                 tabstr += '\n</table>';
                 $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = tabstr;
-                // Load the concept category drop down
-                //  TODO
+
+                // Load the concept category drop down, if not already loaded
+                if ($j('#concepts-select').length == 1) {
+                    for (p=0; p < resp.prefixes.length; p++) {
+                        var code = resp.prefixes[p][0];
+                        var desc = resp.prefixes[p][1];
+                        $j('#concepts-select').append('<option value="' + code + '">' + desc + '</option>');
+                    }
+                }
                
                 // Enable/disable widgets
                 $j('#chi2-pgsize').attr('disabled', false);
+                $j('#concepts-select').attr('disabled', false);
                 $j('#goButton').attr('disabled', true);
             }
 	};
 	return DFTool;
     }(tw.RGateTool));
 
-    function onConceptsLoad(concepts) {
-        var resp = $j.parseJSON(results.str);
-        $j('#concepts-select').append('<option value="fred">Fred</option>');
-        $j('#concepts-select').val('fred');
-    }
 
     exports.model = undefined;
     function Init(loadedDiv) {
@@ -140,6 +144,7 @@ TODO: localize jslint exceptions
         //alert('chi here 4');
 	exports.model = dftool;
         exports.model.pgsize = 10;
+        exports.model.concepts = 'ALL';
 
         // manage YUI tabs
         this.yuiTabs = new YAHOO.widget.TabView("chi2-TABS", {activeIndex:0});
@@ -173,22 +178,36 @@ TODO: localize jslint exceptions
         });
         
         //alert('chi here 6');
-        $j('#goButton').attr('disabled', true);
-        $j('#goButton').click(function() {
-            if (exports.model.pgsize != parseInt($('chi2-pgsize').value)) {
-                pgGo();
+        $j("#concepts-select").val('ALL');
+        $j('#concepts-select').attr('disabled', true);
+        $j("#concepts-select").change(function(){
+            if (exports.model.concepts != $j("#concepts-select").val()) {
+                $j('#goButton').attr('disabled', false);
+            }
+            else if (exports.model.pgsize == parseInt($('chi2-pgsize').value)) {
+                $j('#goButton').attr('disabled', true);
             }
         });
         //alert('chi here 7');
+        $j('#goButton').attr('disabled', true);
+        $j('#goButton').click(function() {
+            if (exports.model.pgsize != parseInt($('chi2-pgsize').value)
+            || exports.model.concepts != $j("#concepts-select").val()) {
+                pgGo();
+            }
+        });
+        //alert('chi here 8');
         $j('#chi2-pgsize').attr('disabled', true);
         $j('#chi2-pgsize').keyup(function(e) {
             if (exports.model.pgsize != parseInt($('chi2-pgsize').value)) {
                 $j('#goButton').attr('disabled', false);
-            } else {
+            }
+            else if (exports.model.concepts == $j("#concepts-select").val()) {
                 $j('#goButton').attr('disabled', true);
             }
             if (e.which == 13) { $j('#goButton').click(); }  // Enter key
         });
+
     }
     exports.Init = Init;
     function Unload() {
@@ -205,9 +224,11 @@ TODO: localize jslint exceptions
             return;
         }
         exports.model.pgsize = formSize;
+        exports.model.concepts = $j("#concepts-select").val();
         $('chi2-pgsize').value = formSize;
         $j('#goButton').attr('disabled', true);
         $j('#chi2-pgsize').attr('disabled', true);
+        $j('#concepts-select').attr('disabled', true);
         $j('#chi2-stats').text('');
         //remove old results
         $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-directions")[0].hide();

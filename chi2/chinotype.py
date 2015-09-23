@@ -58,19 +58,21 @@ def config(arguments={}):
         opt['limit'] = None
         opt['filter'] = None
     else:
-        opt['qmid'] = arguments['-m']
-        opt['psid'] = arguments['-p']
-        opt['tpsid'] = arguments['-t']
-        opt['rpsid'] = arguments['-r']
-        opt['to_file'] = arguments['--output']
-        opt['limit'] = arguments['-n']
-        opt['filter'] = list(set(arguments['-f']))  # set removes duplicates
+        opt['qmid'] = arguments['-m'] or None
+        opt['psid'] = arguments['-p'] or None
+        opt['tpsid'] = arguments['-t'] or None
+        opt['rpsid'] = arguments['-r'] or None
+        opt['to_file'] = arguments['--output'] or False
+        opt['limit'] = arguments['-n'] or None
+        opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
     return opt
 
 
 class Chi2:
-    def __init__(self, arguments={}):
-        opt = config(arguments)
+    def __init__(self, listargs=[], args={}):
+        if args == {}:
+            args = docopt(__doc__, listargs)
+        opt = config(args)
         db=opt['database']
         self.debug_dbopt(db)
         self.outfile = opt['output']['csv'] # filename
@@ -140,9 +142,8 @@ class Chi2:
         return dbi
 
 
-    def runQMID(self, qmid):
+    def runQMID(self):
         '''Run chi2 for an i2b2 query master id'''
-        self.qmid = qmid
         pconcepts = self.pconcepts
         pcounts = self.pcounts
         host, port, service, user, pw = self.getCrcOpt()
@@ -184,9 +185,7 @@ class Chi2:
         return self.runChi()
 
 
-    def runPSID_p2(self, referencePatSet, testPatSet, asJSON=False, limit=None):
-        self.rpsid = referencePatSet
-        self.tpsid = testPatSet
+    def runPSID_p2(self, asJSON=False, limit=None):
         if self.rpsid == self.tpsid:
             self.status = 'Job canceled, identical patient sets'
             if asJSON:
@@ -196,15 +195,16 @@ class Chi2:
                 self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         else:
             # do the reference patient set first
-            self.resetPS()
-            self.runPSID(self.rpsid, asJSON, limit, None)
+            self.resetPS(self.rpsid)
+            self.runPSID(asJSON, limit, None)
             ref = self.chi_name
             # then do the test patient set, using the reference column name
-            self.resetPS()
-            self.runPSID(self.tpsid, asJSON, limit, ref)
+            self.resetPS(self.tpsid)
+            self.runPSID(asJSON, limit, ref)
         return self.status
 
-    def resetPS(self):
+    def resetPS(self, psid):
+        self.psid = psid
         self.psid_done = False
         self.qmid = None
         self.qiid = None
@@ -212,11 +212,10 @@ class Chi2:
         self.chi_name = None
 
 
-    def runPSID(self, psid, asJSON=False, limit=None, ref='TOTAL'):
+    def runPSID(self, asJSON=False, limit=None, ref='TOTAL'):
         '''Run chi2 for an i2b2 patient set id'''
         if limit is not None:
             self.limit = limit
-        self.psid = psid
         pconcepts = self.pconcepts
         pcounts = self.pcounts
         host, port, service, user, pw = self.getCrcOpt()
@@ -224,7 +223,7 @@ class Chi2:
         with dbi() as db:
             # First check if chi2 results exists for patient set already
             try:
-                log.debug('Checking if columns already exist for PSID {0}...'.format(psid))
+                log.debug('Checking if columns already exist for PSID {0}...'.format(self.psid))
                 table_info = pcounts.split('.')
                 owner, table_name = '', ''
                 if len(table_info) > 1:
@@ -237,12 +236,12 @@ class Chi2:
                 where 1=1 {0} {1}
                 and column_name like '%_R{2}'
                 order by column_name desc
-                '''.format(owner, table_name, psid)
+                '''.format(owner, table_name, self.psid)
                 cols, rows = do_log_sql(db, sql)
                 if len(rows) > 0:
                     self.chi_name = rows[0][0]
                     self.psid_done = True
-                    log.info('Using preexisting chi columns for PSID {0}'.format(psid))
+                    log.info('Using preexisting chi columns for PSID {0}'.format(self.psid))
             except:
                 raise
 
@@ -261,10 +260,10 @@ class Chi2:
                     where ri.result_type_id = 1     -- patient set
                     and ri.result_instance_id = {1} and rownum = 1
                     order by qi.query_instance_id desc, qm.query_master_id desc
-                '''.format(self.schema, psid)
+                '''.format(self.schema, self.psid)
                 cols, rows = do_log_sql(db, sql)
                 if len(rows) == 0:
-                    str = 'ERROR, patient set (PSID={0}) not found in QT tables'.format(psid)
+                    str = 'ERROR, patient set (PSID={0}) not found in QT tables'.format(self.psid)
                     #log.error(str)
                     return str
                 qdata = dict(zip([c.lower() for c in cols], list(rows[0])))
@@ -274,8 +273,8 @@ class Chi2:
                 self.qrid = qdata['result_instance_id']
                 self.chi_name = 'M{0}_I{1}_R{2}'.format(self.qmid, self.qiid, self.qrid)
             else:
-                match = re.match('M(?P<psid>\d+)_I(?P<qiid>\d+)_R(?P<qrid>\d+)', self.chi_name)
-                self.qmid = match.group('psid')
+                match = re.match('M(?P<qmid>\d+)_I(?P<qiid>\d+)_R(?P<qrid>\d+)', self.chi_name)
+                self.qmid = match.group('qmid')
                 self.qiid = match.group('qiid')
                 self.qrid = match.group('qrid')
 
@@ -535,9 +534,6 @@ class Chi2:
             except Exception as e:
                 #error, = e.args
                 #log.debug('e.args={0}'.format(e.args))
-                #log.debug('error.code={0}'.format(error.code))
-                #log.debug('error.message={0}'.format(error.message))
-                #log.debug('error.context={0}'.format(error.context))
                 conn.rollback()
                 if temp_table:
                     try:
@@ -556,11 +552,15 @@ class Chi2:
 
 
     def getFilterSql(self):
-        patterns = self.filter or []
-        sql = 'select c_name from {0}.schemes'.format(self.metaschema)
-        for p in range(0, len(patterns)):
-            if p == 0: sql += '\nwhere 1=0'
-            sql += '\nor c_key like :{0} || \'%\''.format(p)
+        #sql = 'select c_name from {0}.schemes'.format(self.metaschema) #TODO: use the real table
+        sql = 'select c_name from {0}.schemes_new'.format(self.metaschema)
+        if 'ALL' in self.filter:
+            sql += '\nwhere 1=1'
+        else:
+            sql += '\nwhere 1=0'
+        for p in range(0, len(self.filter)):
+            if self.filter[p] != 'ALL':
+                sql += '\nor c_key like :{0} || \'%\''.format(p)
         return sql
 
 
@@ -569,10 +569,18 @@ class Chi2:
         if self.limit is not None:
             limstr = 'where rank <= {0} or revrank <= {0}'.format(self.limit)
         filterStr = self.getFilterSql()
-        if self.filter:
-            cols, rows = do_log_sql(db, filterStr, self.filter)
+        if len(self.filter) > 0:
             log.info('Filters: {0}'.format(self.filter))
+            if 'ALL' in self.filter: self.filter.remove('ALL')
+            cols, rows = do_log_sql(db, filterStr, self.filter)
             log.info('Applied filters prefixes: {0}'.format([r[0] for r in rows]))
+        sql = '''
+        select c_name name, c_description description
+        from {0}.schemes_new
+        order by c_name
+        '''.format(self.metaschema)
+        cols, rows = do_log_sql(db, sql)
+        prefixes = [(r[0], r[1]) for r in rows]
         sql = '''
         with patterns as (
             {4}
@@ -619,7 +627,7 @@ class Chi2:
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
         '''.format(colname, pcounts, limstr, ref, filterStr)
-        cols, rows = do_log_sql(db, sql, self.filter or [])
+        cols, rows = do_log_sql(db, sql, self.filter)
 
         if outfile is not None:
             quote = ['CCD', 'NAME']
@@ -639,7 +647,7 @@ class Chi2:
 
         status = 'Done, chi success!'
         if asJSON:
-            self.status = json.dumps({'cols': cols, 'rows': rows, 'status': status})
+            self.status = json.dumps({'cols': cols, 'rows': rows, 'prefixes': prefixes, 'status': status})
         else:
             self.status = status
         return self.status
@@ -671,9 +679,11 @@ def do_log_sql(cur, sql, params=[]):
 if __name__=='__main__':
     args = docopt(__doc__, argv=argv[1:])
     if args['-p']:
-        log.info(Chi2(args).runPSID(args['-p']))
+        log.info(Chi2(args=args).runPSID())
+        # test prefixes
+        #log.info(json.loads(Chi2(args=args).runPSID(True))['prefixes'])
     elif args['-m']:
-        log.info(Chi2(args).runQMID(args['-m']))
+        log.info(Chi2(args=args).runQMID())
     elif args['-t'] and args['-r']:
-        log.info(Chi2(args).runPSID_p2(args['-r'], args['-t']))
+        log.info(Chi2(args=args).runPSID_p2())
 
