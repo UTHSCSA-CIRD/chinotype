@@ -552,8 +552,7 @@ class Chi2:
 
 
     def getFilterSql(self):
-        #sql = 'select c_name from {0}.schemes'.format(self.metaschema) #TODO: use the real table
-        sql = 'select c_name from {0}.schemes_new'.format(self.metaschema)
+        sql = 'select c_name from {0}.schemes'.format(self.metaschema)
         if 'ALL' in self.filter:
             sql += '\nwhere 1=1'
         else:
@@ -584,7 +583,7 @@ class Chi2:
         if asJSON:
             sql = '''
             select c_name name, c_description description
-            from {0}.schemes_new
+            from {0}.schemes
             order by c_name
             '''.format(self.metaschema)
             cols, rows = do_log_sql(db, sql)
