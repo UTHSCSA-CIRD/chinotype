@@ -565,22 +565,31 @@ class Chi2:
 
 
     def chi2_output(self, db, colname, ref, pcounts, schema, outfile=None, asJSON=False):
+        if not outfile and not asJSON: 
+            self.status = 'Done, chi success!'
+            return self.status
+        # Limit results by number of rows results
         limstr = ''
         if self.limit is not None:
             limstr = 'where rank <= {0} or revrank <= {0}'.format(self.limit)
+        # Filter results by concept code prefix (data domain)
         filterStr = self.getFilterSql()
         if len(self.filter) > 0:
             log.info('Filters: {0}'.format(self.filter))
             if 'ALL' in self.filter: self.filter.remove('ALL')
             cols, rows = do_log_sql(db, filterStr, self.filter)
             log.info('Applied filters prefixes: {0}'.format([r[0] for r in rows]))
-        sql = '''
-        select c_name name, c_description description
-        from {0}.schemes_new
-        order by c_name
-        '''.format(self.metaschema)
-        cols, rows = do_log_sql(db, sql)
-        prefixes = [(r[0], r[1]) for r in rows]
+        # Store prefixes for web UI concepts-selector drop down box
+        prefixes = []
+        if asJSON:
+            sql = '''
+            select c_name name, c_description description
+            from {0}.schemes_new
+            order by c_name
+            '''.format(self.metaschema)
+            cols, rows = do_log_sql(db, sql)
+            prefixes = [(r[0], r[1]) for r in rows]
+        # Get results data 
         sql = '''
         with patterns as (
             {4}
@@ -629,6 +638,7 @@ class Chi2:
         '''.format(colname, pcounts, limstr, ref, filterStr)
         cols, rows = do_log_sql(db, sql, self.filter)
 
+        # Write results to file
         if outfile is not None:
             quote = ['CCD', 'NAME']
             with open(outfile, 'w') as file:
@@ -645,6 +655,7 @@ class Chi2:
                         else:
                             file.write(',')
 
+        # Return results/status
         status = 'Done, chi success!'
         if asJSON:
             self.status = json.dumps({'cols': cols, 'rows': rows, 'prefixes': prefixes, 'status': status})
