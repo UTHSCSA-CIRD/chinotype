@@ -4,15 +4,19 @@
 table.analysis-params {
     margin-top: 1em;
     margin-left: 2em;
-    width: 100%;
+    width: 80%;
     cellpading: 0;
     cellspacing: 0;
 }
 table.analysis-params tr th {
     vertical-align: top; text-align: right; margin-top: 0.5em;
-    padding-bottom: 1em;
+    /*padding-bottom: 1em;*/
 }
 table.analysis-params tr td {
+    padding-bottom: 1em;
+    width: 100%;
+}
+table.analysis-params tr td .padend {
     padding-bottom: 1em;
 }
 table.analysis-params tr td ul {
@@ -23,7 +27,7 @@ table.analysis-params tr td ul li {
 }
 table.analysis-params tr td div.droptrgt {
     margin-top: 0 !important;
-    margin-left: 2em !important
+    /*margin-left: 2em !important*/
 }
 
 /*** CSS for main plugin wrapper ***/
@@ -54,7 +58,6 @@ table.analysis-params tr td div.droptrgt {
 
 
 /*** CSS for the Specify Data tab ***/
-
 #analysis-mainDiv DIV.droptrgtlbl {
 	padding: 6px 0px;
 	width:80px;
@@ -62,7 +65,7 @@ table.analysis-params tr td div.droptrgt {
 	float: left;
 	font-weight:bold;
 	color:#666;
-	margin: 15px 10px 0px 0px;
+	margin: 0px 10px 0px 0px;
 }
 #analysis-mainDiv DIV.droptrgt {
 	padding: 5px 10px;
@@ -73,7 +76,6 @@ table.analysis-params tr td div.droptrgt {
 	width: 80%;
 	overflow:hidden;
 	white-space:nowrap;
-	
 }
 
 .droptrgt .concptItem {
@@ -128,10 +130,15 @@ table.analysis-params tr td div.droptrgt {
 #chi2-TABS DIV.results-text {
 	margin:10px;
 }
-#chi2-TABS DIV.results-chi2 {
-	margin:10px;
-}
 #chi2-TABS DIV.results-header {
+	margin:10px;
+        vertical-align: middle;
+}
+#chi2-stats {
+    float: right;
+    text-align: right;
+}
+#chi2-TABS DIV.results-chi2 {
 	margin:10px;
 }
 #analysis-mainDiv #analysis-InfoPDO TABLE {

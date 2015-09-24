@@ -114,10 +114,8 @@ todo: consider eliminating jQuery dependency
 
     RGateTool = (function () {
 
-        function RGateTool(container, rgate, builder, chi2) {
+        function RGateTool(container, chi2) {
             this.container = container;
-	    this.rgate = rgate;
-	    this.builder = builder;
 	    this.chi2 = chi2;
             var that = this;
             // in theory, these are: container.select('#info') etc.
@@ -172,10 +170,8 @@ todo: consider eliminating jQuery dependency
                     alert("error from back-end:\n" + xhr.responseText);
 		};
 
-            this.startFishing();
-
-            var backend = pop(params, 'backend') == 'builder' ? this.builder : this.rgate;
-            backend = this.chi2;
+            //this.startFishing();
+            var backend = this.chi2;
             backend.post(params, show_results, show_error);
             
         };
