@@ -619,7 +619,7 @@ class Chi2:
             , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
             from {1}
             , cohort
-            where frc_{3} > 0
+            where frc_{3} > 0   -- reference patient set frequency
             --where frc_{3} > 0 or frc_{0} > 0
         )
         , ranked_data as (
