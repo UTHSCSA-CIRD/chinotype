@@ -64,7 +64,7 @@ def config(arguments={}):
         opt['rpsid'] = arguments['-r'] or None
         opt['to_file'] = arguments['--output'] or False
         opt['limit'] = arguments['-n'] or None
-        opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
+        opt['filter'] = list(set(arguments['-f']))  # set removes duplicates
     return opt
 
 
@@ -555,7 +555,7 @@ class Chi2:
         sql = 'select c_name from {0}.schemes'.format(self.metaschema)
         if 'ALL' in self.filter:
             sql += '\nwhere 1=1'
-        else:
+        elif len(self.filter) > 0:
             sql += '\nwhere 1=0'
         for p in range(0, len(self.filter)):
             if self.filter[p] != 'ALL':
@@ -565,6 +565,8 @@ class Chi2:
 
     def chi2_output(self, db, colname, ref, pcounts, schema, outfile=None, asJSON=False):
         if not outfile and not asJSON: 
+            if len(self.filter) > 0:
+                log.info('Ignoring filters, no ouput format selected')
             self.status = 'Done, chi success!'
             return self.status
         # Limit results by number of rows results

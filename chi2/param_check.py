@@ -90,7 +90,7 @@ class JobSetUp(object):
             if len(concepts) > 0:
                 args.extend(['-f', [concepts]])
             if patient_set_1 == 0:
-                args.extend(['-p', patient_set_1])
+                args.extend(['-p', patient_set_2])
                 chistr = Chi2(listargs=args).runPSID(True, pgsize)
             else:
                 args.extend(['-r', patient_set_1])
