@@ -606,7 +606,9 @@ class Chi2:
             , {0}
             , frc_{0}
             , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
-            /* TODO: show rows where concepts in ref but not test patient set ?????
+            /* -- TODO: show rows where concepts in ref but not test patient set? For now
+               -- no, b/c test pat sets are limited to strict subsets of reference pat set.
+               -- but we may want to do something like this is semi-overlapping sets are allowed.
             , case
                 when frc_{3} = frc_{0} then
                     0
