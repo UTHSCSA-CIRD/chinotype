@@ -17,6 +17,7 @@ Options:
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
     -o --output         Create an chi2 output file
+    -j --json           Return JSON output
     -n limit            Limit to topN over/under represented facts
     -f PATTERN          Filter output concept codes by PATTERN (e.g. i2b2metadata.SCHEMES.C_KEY)
     -x CUTOFF           Filter output where reference population patient/fact count >= CUTOFF
@@ -56,6 +57,7 @@ def config(arguments={}):
         opt['tpsid'] = None
         opt['rpsid'] = None
         opt['to_file'] = False
+        opt['to_json'] = False
         opt['limit'] = None
         opt['filter'] = None
         opt['cutoff'] = None
@@ -65,6 +67,7 @@ def config(arguments={}):
         opt['tpsid'] = arguments['-t'] or None
         opt['rpsid'] = arguments['-r'] or None
         opt['to_file'] = arguments['--output'] or False
+        opt['to_json'] = arguments['--json'] or False
         opt['limit'] = arguments['-n'] or None
         opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
         opt['cutoff'] = arguments['-x'] or None
@@ -80,8 +83,9 @@ class Chi2:
         self.debug_dbopt(db)
         self.outfile = opt['output']['csv'] # filename
         self.to_file = opt['to_file']  # write to file? T/F
+        self.to_json = opt['to_json']  # return JSON output? T/F
         if self.to_file:
-            log.info('output={0}'.format(self.outfile))
+            log.info('output file={0}'.format(self.outfile))
         self.crc_host = db['crc_host']
         self.crc_port = db['crc_port']
         self.crc_user = db['crc_user']
@@ -110,6 +114,7 @@ class Chi2:
         self.limit = opt['limit']
         self.filter = opt['filter']
         self.cutoff = opt['cutoff']
+        self.ref = 'TOTAL'  # default reference patient set
         self.status = ''
         self.prepChi()      # create the chi2 tables if needed
 
@@ -193,22 +198,23 @@ class Chi2:
         return self.runChi()
 
 
-    def runPSID_p2(self, asJSON=False, limit=None):
+    def runPSID_p2(self):
         if self.rpsid == self.tpsid:
             self.status = 'Job canceled, identical patient sets'
-            if asJSON:
+            if self.to_json:
                 self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         elif not self.checkIntersection():
-            if asJSON:
+            if self.to_json:
                 self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         else:
             # do the reference patient set first
             self.resetPS(self.rpsid)
-            self.runPSID(asJSON, limit, None)
+            self.runPSID()
             ref = self.chi_name
             # then do the test patient set, using the reference column name
             self.resetPS(self.tpsid)
-            self.runPSID(asJSON, limit, ref)
+            self.ref = ref
+            self.runPSID()
         return self.status
 
     def resetPS(self, psid):
@@ -218,12 +224,11 @@ class Chi2:
         self.qiid = None
         self.qrid = None
         self.chi_name = None
+        self.ref = None
 
 
-    def runPSID(self, asJSON=False, limit=None, ref='TOTAL'):
+    def runPSID(self):
         '''Run chi2 for an i2b2 patient set id'''
-        if limit is not None:
-            self.limit = limit
         pconcepts = self.pconcepts
         pcounts = self.pcounts
         host, port, service, user, pw = self.getCrcOpt()
@@ -295,7 +300,7 @@ class Chi2:
             cols, rows = do_log_sql(db, sql)
             self.pats = rows
 
-            return self.runChi(asJSON, ref)
+            return self.runChi()
 
 
     def prepChi(self):
@@ -376,12 +381,11 @@ class Chi2:
                 cols, rows = do_log_sql(db, sql)
 
 
-    def runChi(self, asJSON=False, ref='TOTAL'):
+    def runChi(self):
         pats = self.pats
         schema = self.schema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
-        outfile = self.outfile
         host, port, service, user, pw, temp_table = self.getChiOpt()
         chi_dbi = self.getOracleDBI(host, port, service, user, pw, temp_table)
         with chi_dbi() as db:
@@ -452,15 +456,12 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'commit')
                 cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
 
-                if asJSON:
+                if self.to_json:
                     sql = 'select {0}, {1} from {2}'.format(chi_name, 'frc_%s' % chi_name, pcounts)
                     cols, rows = do_log_sql(db, sql)
 
-            fout = None
-            if self.to_file:
-                fout = outfile
-            if ref != None:
-                resp = self.chi2_output(db, chi_name, ref, pcounts, schema, fout, asJSON)
+            if self.ref:
+                resp = self.chi2_output(db)
             else:
                 resp = ''
 
@@ -477,7 +478,6 @@ class Chi2:
         pcounts = self.pcounts
         qmid = self.qmid
         chi_name = self.chi_name
-        outfile = self.outfile
         schema = self.schema
         pats = self.pats
         # if pcounts has QMID & patient count matches latest, return existing results
@@ -586,8 +586,9 @@ class Chi2:
         return sql
 
 
-    def chi2_output(self, db, colname, ref, pcounts, schema, outfile=None, asJSON=False):
-        if not outfile and not asJSON: 
+    def chi2_output(self, db):
+        # Skip filtering/output if not required
+        if not self.to_file and not self.to_json: 
             if len(self.filter) > 0:
                 log.info('Ignoring filters, no ouput format selected')
             self.status = 'Done, chi success!'
@@ -606,11 +607,11 @@ class Chi2:
         # Filter results by reference fact cutoff
         cutoff = ''
         if self.cutoff:
-            cutoff = 'and {0} >= {1}'.format(ref, self.cutoff)
+            cutoff = 'and {0} >= {1}'.format(self.ref, self.cutoff)
             log.info('Reference patient set cutoff: {0}'.format(self.cutoff))
         # Store prefixes for web UI concepts-selector drop down box
         prefixes = []
-        if asJSON:
+        if self.to_json:
             sql = '''
             select c_name name, c_description description
             from {0}.schemes
@@ -667,13 +668,13 @@ class Chi2:
         union all
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
-        '''.format(colname, pcounts, limstr, ref, filterStr, cutoff)
+        '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
 
         # Write results to file
-        if outfile is not None:
+        if self.to_file:
             quote = ['CCD', 'NAME']
-            with open(outfile, 'w') as file:
+            with open(self.outfile, 'w') as file:
                 file.write('%s\n' % ','.join(['\"{0}\"'.format(c) for c in cols]))
                 for row in rows:
                     data = dict(zip(cols, row))
@@ -689,7 +690,7 @@ class Chi2:
 
         # Return results/status
         status = 'Done, chi success!'
-        if asJSON:
+        if self.to_json:
             self.status = json.dumps({'cols': cols, 'rows': rows, 'prefixes': prefixes, 'status': status})
         else:
             self.status = status
@@ -723,8 +724,6 @@ if __name__=='__main__':
     args = docopt(__doc__, argv=argv[1:])
     if args['-p']:
         log.info(Chi2(args=args).runPSID())
-        # test prefixes
-        #log.info(json.loads(Chi2(args=args).runPSID(True))['prefixes'])
     elif args['-m']:
         log.info(Chi2(args=args).runQMID())
     elif args['-t'] and args['-r']:

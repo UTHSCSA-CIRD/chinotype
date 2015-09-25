@@ -87,17 +87,16 @@ class JobSetUp(object):
         def do_job(username, patient_set_1, patient_set_2, pgsize, cutoff, concepts, **job_info):
             log.info('running job for user=%s, patient_set_1=%s, patient_set_2=%s', \
                 username, patient_set_1, patient_set_2)
-            args = []
-            args.extend(['-x', cutoff])
+            args = ['-j', '-x', cutoff, '-n', pgsize]
             if len(concepts) > 0:
                 args.extend(['-f', [concepts]])
             if patient_set_1 == 0:
                 args.extend(['-p', patient_set_2])
-                chistr = Chi2(listargs=args).runPSID(True, pgsize)
+                chistr = Chi2(listargs=args).runPSID()
             else:
                 args.extend(['-r', patient_set_1])
                 args.extend(['-t', patient_set_2])
-                chistr = Chi2(listargs=args).runPSID_p2(True, pgsize)
+                chistr = Chi2(listargs=args).runPSID_p2()
             chijson = json.loads(chistr)
             log.info('response=%s', chijson['status'])
             return { out_key: chistr }
