@@ -18,6 +18,7 @@ chi_user=bos
 chi_pw=SEKRET_PW_GOES_HERE
 chi_pconcepts=schema.table_name
 chi_pcounts=schema.table_name
+chi_pats=schema.table_name
 
 schema=i2b2demodata
 metaschema=i2b2metadata

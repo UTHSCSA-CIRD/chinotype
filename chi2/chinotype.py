@@ -100,12 +100,14 @@ class Chi2:
         self.chi_pw = db['chi_pw']
         self.pconcepts = db['chi_pconcepts']
         self.pcounts = db['chi_pcounts']
+        self.chipats = db['chi_pats']
         self.chi_name = None
         self.pats = []
         self.out_json = None
         self.limit = opt['limit']
         self.filter = opt['filter']
         self.status = ''
+        self.prepChi()      # create the chi2 tables if needed
 
 
     def debug_dbopt(self, db):
@@ -119,6 +121,7 @@ class Chi2:
         log.debug('       chi user={0}'.format(db['chi_user']))
         log.debug('  chi pconcepts={0}'.format(db['chi_pconcepts']))
         log.debug('    chi pcounts={0}'.format(db['chi_pcounts']))
+        log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
         log.debug('data metaschema={0}'.format(db['metaschema']))
 
@@ -280,24 +283,39 @@ class Chi2:
 
             sql = '''
                 select distinct patient_num
-                from {0}.qt_patient_set_collection
+                from {0}.qt_patient_set_collection pc
+                join {2} chipat on chipat.pn = pc.patient_num
                 where result_instance_id = {1}
-            '''.format(self.schema, self.qrid)
+            '''.format(self.schema, self.qrid, self.chipats)
             cols, rows = do_log_sql(db, sql)
             self.pats = rows
 
             return self.runChi(asJSON, ref)
 
 
-    def runChi(self, asJSON=False, ref='TOTAL'):
-        pats = self.pats
+    def prepChi(self):
         schema = self.schema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
-        outfile = self.outfile
         host, port, service, user, pw, temp_table = self.getChiOpt()
         chi_dbi = self.getOracleDBI(host, port, service, user, pw, temp_table)
         with chi_dbi() as db:
+            # check if chipats exists
+            try:
+                log.debug('Checking if chi_pats table exists...')
+                cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(self.chipats))
+            except:
+                log.info('chi_pats table ({0}) does not exist, creating it...'.format(self.chipats))
+                sql = '''
+                -- patients who have at least some visit info, on which we will filter using joins
+                -- question: are there any patients missing this code that nevertheless have EMR
+                -- data other than demographics?
+                create table {0} as
+                select distinct patient_num pn
+                from {1}.observation_fact
+                where concept_cd like 'KUMC|DischargeDisposition:%'
+                '''.format(self.chipats, schema)
+                cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
             try:
                 log.debug('Checking if chi_pconcepts table exists...')
@@ -306,20 +324,10 @@ class Chi2:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
                 sql = '''
                 create table {0} as
-                with obs as (
-                    select distinct patient_num pn, concept_cd ccd
-                    from {1}.observation_fact
-                )
-                -- patients who have at least some visit info, on which we will filter using a join
-                -- open question: are there any patients missing this code that nevertheless have EMR
-                -- data other than demographics?
-                , good as (
-                    select distinct patient_num
-                    from {1}.observation_fact
-                    where concept_cd = 'KUMC|DischargeDisposition:0'
-                )
-                select obs.* from obs join good on pn = patient_num
-                '''.format(pconcepts, schema)
+                select distinct obs.patient_num pn, concept_cd ccd
+                from {1}.observation_fact obs
+                join {2} chipat on chipat.pn = obs.patient_num
+                '''.format(pconcepts, schema, self.chipats)
                 cols, rows = do_log_sql(db, sql)
 
             # create pcounts table if needed
@@ -362,6 +370,16 @@ class Chi2:
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
 
+
+    def runChi(self, asJSON=False, ref='TOTAL'):
+        pats = self.pats
+        schema = self.schema
+        pconcepts = self.pconcepts
+        pcounts = self.pcounts
+        outfile = self.outfile
+        host, port, service, user, pw, temp_table = self.getChiOpt()
+        chi_dbi = self.getOracleDBI(host, port, service, user, pw, temp_table)
+        with chi_dbi() as db:
             runChi = True
             if self.qmid is not None:
                 col_name = self.checkRerunQMID(db)
