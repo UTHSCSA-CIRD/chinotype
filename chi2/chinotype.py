@@ -19,6 +19,7 @@ Options:
     -o --output         Create an chi2 output file
     -n limit            Limit to topN over/under represented facts
     -f PATTERN          Filter output concept codes by PATTERN (e.g. i2b2metadata.SCHEMES.C_KEY)
+    -x CUTOFF           Filter output where reference population patient/fact count >= CUTOFF
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
@@ -57,6 +58,7 @@ def config(arguments={}):
         opt['to_file'] = False
         opt['limit'] = None
         opt['filter'] = None
+        opt['cutoff'] = None
     else:
         opt['qmid'] = arguments['-m'] or None
         opt['psid'] = arguments['-p'] or None
@@ -64,7 +66,8 @@ def config(arguments={}):
         opt['rpsid'] = arguments['-r'] or None
         opt['to_file'] = arguments['--output'] or False
         opt['limit'] = arguments['-n'] or None
-        opt['filter'] = list(set(arguments['-f']))  # set removes duplicates
+        opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
+        opt['cutoff'] = arguments['-x'] or None
     return opt
 
 
@@ -106,6 +109,7 @@ class Chi2:
         self.out_json = None
         self.limit = opt['limit']
         self.filter = opt['filter']
+        self.cutoff = opt['cutoff']
         self.status = ''
         self.prepChi()      # create the chi2 tables if needed
 
@@ -590,7 +594,7 @@ class Chi2:
             return self.status
         # Limit results by number of rows results
         limstr = ''
-        if self.limit is not None:
+        if self.limit:
             limstr = 'where rank <= {0} or revrank <= {0}'.format(self.limit)
         # Filter results by concept code prefix (data domain)
         filterStr = self.getFilterSql()
@@ -599,6 +603,11 @@ class Chi2:
             if 'ALL' in self.filter: self.filter.remove('ALL')
             cols, rows = do_log_sql(db, filterStr, self.filter)
             log.info('Applied filters prefixes: {0}'.format([r[0] for r in rows]))
+        # Filter results by reference fact cutoff
+        cutoff = ''
+        if self.cutoff:
+            cutoff = 'and {0} >= {1}'.format(ref, self.cutoff)
+            log.info('Reference patient set cutoff: {0}'.format(self.cutoff))
         # Store prefixes for web UI concepts-selector drop down box
         prefixes = []
         if asJSON:
@@ -641,6 +650,7 @@ class Chi2:
             from {1}
             , cohort
             where frc_{3} > 0   -- reference patient set frequency
+            {5}
             --where frc_{3} > 0 or frc_{0} > 0
         )
         , ranked_data as (
@@ -657,7 +667,7 @@ class Chi2:
         union all
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
-        '''.format(colname, pcounts, limstr, ref, filterStr)
+        '''.format(colname, pcounts, limstr, ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
 
         # Write results to file

@@ -68,6 +68,7 @@ TODO: localize jslint exceptions
 		patient_set_1: pset1,
 		patient_set_2: this.pw2.pset_id(this.prs2),
                 pgsize: exports.model.pgsize,
+                cutoff: exports.model.cutoff,
                 concepts: exports.model.concepts
 	    };
 	};
@@ -128,6 +129,7 @@ TODO: localize jslint exceptions
                
                 // Enable/disable widgets
                 $j('#chi2-pgsize').attr('disabled', false);
+                $j('#chi2-cutoff').attr('disabled', false);
                 $j('#concepts-select').attr('disabled', false);
                 $j('#goButton').attr('disabled', true);
             }
@@ -144,6 +146,7 @@ TODO: localize jslint exceptions
         //alert('chi here 4');
 	exports.model = dftool;
         exports.model.pgsize = 10;
+        exports.model.cutoff = 10;
         exports.model.concepts = 'ALL';
 
         // manage YUI tabs
@@ -153,6 +156,7 @@ TODO: localize jslint exceptions
             if (ev.newValue.get('id')=="chi2-TAB1") {
                 // user switched to Results tab
                 $('chi2-pgsize').value = exports.model.pgsize.toString();
+                $('chi2-cutoff').value = exports.model.cutoff.toString();
                 //if (exports.model.prs1 && exports.model.prs2) {
                 if (exports.model.prs2) {
                     // contact PDO only if we have data
@@ -184,7 +188,8 @@ TODO: localize jslint exceptions
             if (exports.model.concepts != $j("#concepts-select").val()) {
                 $j('#goButton').attr('disabled', false);
             }
-            else if (exports.model.pgsize == parseInt($('chi2-pgsize').value)) {
+            else if (exports.model.pgsize == parseInt($('chi2-pgsize').value)
+            && exports.model.cutoff == parseInt($('chi2-cutoff').value)) {
                 $j('#goButton').attr('disabled', true);
             }
         });
@@ -192,6 +197,7 @@ TODO: localize jslint exceptions
         $j('#goButton').attr('disabled', true);
         $j('#goButton').click(function() {
             if (exports.model.pgsize != parseInt($('chi2-pgsize').value)
+            || exports.model.cutoff != parseInt($('chi2-cutoff').value)
             || exports.model.concepts != $j("#concepts-select").val()) {
                 pgGo();
             }
@@ -202,11 +208,25 @@ TODO: localize jslint exceptions
             if (exports.model.pgsize != parseInt($('chi2-pgsize').value)) {
                 $j('#goButton').attr('disabled', false);
             }
-            else if (exports.model.concepts == $j("#concepts-select").val()) {
+            else if (exports.model.concepts == $j("#concepts-select").val()
+            && exports.model.cutoff == parseInt($('chi2-cutoff').value)) {
                 $j('#goButton').attr('disabled', true);
             }
             if (e.which == 13) { $j('#goButton').click(); }  // Enter key
         });
+        //alert('chi here 9');
+        $j('#chi2-cutoff').attr('disabled', true);
+        $j('#chi2-cutoff').keyup(function(e) {
+            if (exports.model.cutoff != parseInt($('chi2-cutoff').value)) {
+                $j('#goButton').attr('disabled', false);
+            }
+            else if (exports.model.concepts == $j("#concepts-select").val()
+            && exports.model.pgsize == parseInt($('chi2-pgsize').value)) {
+                $j('#goButton').attr('disabled', true);
+            }
+            if (e.which == 13) { $j('#goButton').click(); }  // Enter key
+        });
+
 
     }
     exports.Init = Init;
@@ -224,10 +244,19 @@ TODO: localize jslint exceptions
             return;
         }
         exports.model.pgsize = formSize;
+        var cutoff = parseInt($('chi2-cutoff').value);
+        if (!cutoff || cutoff < 1) {
+            alert('View Results error: please enter a positive integer value for cutoff');
+            $('chi2-cutoff').value = exports.model.cutoff.toString();
+            return;
+        }
+        exports.model.cutoff = cutoff;
         exports.model.concepts = $j("#concepts-select").val();
         $('chi2-pgsize').value = formSize;
+        $('chi2-cutoff').value = cutoff;
         $j('#goButton').attr('disabled', true);
         $j('#chi2-pgsize').attr('disabled', true);
+        $j('#chi2-cutoff').attr('disabled', true);
         $j('#concepts-select').attr('disabled', true);
         $j('#chi2-stats').text('');
         //remove old results

@@ -60,6 +60,7 @@ def decode_concepts(txt):
 
 class JobSetUp(object):
     mandatory_params = [('pgsize', int),
+                        ('cutoff', int),
                         ('patient_set_1', int),
                         ('patient_set_2', int),
                         ('concepts', None)]
@@ -83,10 +84,11 @@ class JobSetUp(object):
 
         self.queue_if_authz = account_check.restrict(lambda *args: queue)
         '''
-        def do_job(username, patient_set_1, patient_set_2, pgsize, concepts, **job_info):
+        def do_job(username, patient_set_1, patient_set_2, pgsize, cutoff, concepts, **job_info):
             log.info('running job for user=%s, patient_set_1=%s, patient_set_2=%s', \
                 username, patient_set_1, patient_set_2)
             args = []
+            args.extend(['-x', cutoff])
             if len(concepts) > 0:
                 args.extend(['-f', [concepts]])
             if patient_set_1 == 0:
@@ -104,7 +106,7 @@ class JobSetUp(object):
 
     def __call__(self, env, start_response,
                  username, password,
-                 pgsize, patient_set_1, patient_set_2, concepts):
+                 pgsize, cutoff, patient_set_1, patient_set_2, concepts):
         '''Handle HTTP request per `WSGI`__.
 
         __ http://www.python.org/dev/peps/pep-0333/
@@ -115,6 +117,7 @@ class JobSetUp(object):
         :type start_response: (String, Seq[(String, String)]) => Unit
 
         :param String pgsize: page size, # concepts to display (numeral)
+        :param String cutoff: min patient count in reference group to display
         :param String patient_set_1: patient_set id (numeral)
         :param String patient_set_2: patient_set id (numeral)
         :param String concepts: concept_prefix filter (String)
@@ -131,7 +134,7 @@ class JobSetUp(object):
             raise NotAuthorized(ex)
 
         log.debug('i2b2 credentials OK for %s', username)
-        out = do_job(username, patient_set_1, patient_set_2, pgsize, concepts)
+        out = do_job(username, patient_set_1, patient_set_2, pgsize, cutoff, concepts)
 
         start_response('200 OK',
                        [('content-type', 'application/json')])
