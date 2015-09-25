@@ -173,17 +173,18 @@ class Chi2:
                 return str
             qdata = dict(zip([c.lower() for c in cols], list(rows[0])))
             log.debug('qdata={0}'.format(qdata))
-
-            sql = '''
-                select distinct patient_num
-                from {0}.qt_patient_set_collection
-                where result_instance_id = {1}
-            '''.format(self.schema, qdata['result_instance_id'])
-            cols, rows = do_log_sql(db, sql)
-            self.pats = rows
             self.qiid = qdata['query_instance_id']
             self.qrid = qdata['result_instance_id']
             self.chi_name = 'M{0}_I{1}_R{2}'.format(self.qmid, self.qiid, self.qrid)
+
+            sql = '''
+                select distinct patient_num
+                from {0}.qt_patient_set_collection pc
+                join {2} chipat on chipat.pn = pc.patient_num
+                where result_instance_id = {1}
+            '''.format(self.schema, self.qrid, self.chipats)
+            cols, rows = do_log_sql(db, sql)
+            self.pats = rows
 
         return self.runChi()
 
