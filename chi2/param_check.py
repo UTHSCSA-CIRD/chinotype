@@ -59,7 +59,7 @@ def decode_concepts(txt):
 
 
 class JobSetUp(object):
-    mandatory_params = [('pgsize', int),
+    mandatory_params = [('pgsize', None),
                         ('cutoff', int),
                         ('patient_set_1', int),
                         ('patient_set_2', int),

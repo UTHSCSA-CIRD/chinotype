@@ -63,14 +63,26 @@ TODO: localize jslint exceptions
             else {
                 pset1 = this.pw1.pset_id(this.prs1);
             }
-	    return {
-		backend: 'chi2',
-		patient_set_1: pset1,
-		patient_set_2: this.pw2.pset_id(this.prs2),
-                pgsize: exports.model.pgsize,
-                cutoff: exports.model.cutoff,
-                concepts: exports.model.concepts
-	    };
+            if (exports.model.toCsv) {
+                return {
+                    backend: 'chi2',
+                    patient_set_1: pset1,
+                    patient_set_2: this.pw2.pset_id(this.prs2),
+                    pgsize: 'ALL',
+                    cutoff: 1,
+                    concepts: 'ALL'
+                };
+            }
+            else {
+                return {
+                    backend: 'chi2',
+                    patient_set_1: pset1,
+                    patient_set_2: this.pw2.pset_id(this.prs2),
+                    pgsize: exports.model.pgsize,
+                    cutoff: exports.model.cutoff,
+                    concepts: exports.model.concepts
+                };
+            }
 	};
 
 	DFTool.prototype.show_results = function (results) {
@@ -78,8 +90,46 @@ TODO: localize jslint exceptions
 
             // Display results
             var resp = $j.parseJSON(results.str);
+            var p1name = $('chi2-p1-colname').value.toUpperCase().replace(/\W+/g, '_');
+            var p2name = $('chi2-p2-colname').value.toUpperCase().replace(/\W+/g, '_');
+
             if (resp.rows.length == 0) { 
                 $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = resp.status;
+            }
+            else if (exports.model.toCsv) { 
+                var headers = [];
+                for (var c=0; c < resp.cols.length; c++) {
+                    var data = resp.cols[c]; 
+                    if (c == 2) { data = p1name; }
+                    else if (c == 3) { data = 'FRC_' + p1name; }
+                    else if (c == 4) { data = p2name; }
+                    else if (c == 5) { data = 'FRC_' + p2name; }
+                    headers.push(data);
+                }
+                var csvOut = headers.join(',') + '\n';
+                resp.rows.forEach(function(rdata, ri) {
+                    var row = [];
+                    resp.cols.forEach(function(cdata, ci) {
+                        if (resp.rows[ri][ci] != null && ci == 1) {
+                            var rstr = resp.rows[ri][ci].replace(/\"/g, '""');
+                            row.push('"' + rstr + '"');
+                        }
+                        else {
+                            row.push(resp.rows[ri][ci]);
+                        }
+                    });
+                    var str = row.join(',');
+                    csvOut += ri < resp.rows.length ? str + '\n' : str;
+                });
+                $j('#exportLink').attr('href', 
+                  'data:text/csv;charset=utf-8,' + encodeURIComponent(csvOut));
+                var filename = p1name + '_' +  p2name + '.csv';
+                $j('#exportLink').attr('download', filename);
+                //$j('#exportLink').click();  // doesn't work, use plain Javascript
+                document.getElementById("exportLink").click();
+                exports.model.toCsv = false;
+                $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = 
+                    exports.model.saveHTML;
             }
             else {
                 var tabstr = '<table id="chi2-result-tbl" border="1" border-collapse="collapse">';
@@ -87,10 +137,10 @@ TODO: localize jslint exceptions
                 tabstr += '\n<tr>';
                 for (c=0; c < resp.cols.length; c++) {
                     var data = resp.cols[c]; 
-                    if (c == 2) { data = $('chi2-p1-colname').value.toUpperCase(); }
-                    else if (c == 3) { data = 'FRC_' + $('chi2-p1-colname').value.toUpperCase(); }
-                    else if (c == 4) { data = $('chi2-p2-colname').value.toUpperCase(); }
-                    else if (c == 5) { data = 'FRC_' + $('chi2-p2-colname').value.toUpperCase(); }
+                    if (c == 2) { data = p1name; }
+                    else if (c == 3) { data = 'FRC_' + p1name; }
+                    else if (c == 4) { data = p2name; }
+                    else if (c == 5) { data = 'FRC_' + p2name; }
                     tabstr += '\n\t<th>' + data + '</th>';
                 }
                 tabstr += '\n</tr>';
@@ -126,13 +176,10 @@ TODO: localize jslint exceptions
                         $j('#concepts-select').append('<option value="' + code + '">' + desc + '</option>');
                     }
                 }
-               
-                // Enable/disable widgets
-                $j('#chi2-pgsize').attr('disabled', false);
-                $j('#chi2-cutoff').attr('disabled', false);
-                $j('#concepts-select').attr('disabled', false);
-                $j('#goButton').attr('disabled', true);
             }
+            // Enable/disable widgets
+            enableWidgets(false);
+            $j('#goButton').attr('disabled', true);
 	};
 	return DFTool;
     }(tw.RGateTool));
@@ -148,6 +195,7 @@ TODO: localize jslint exceptions
         exports.model.pgsize = 10;
         exports.model.cutoff = 10;
         exports.model.concepts = 'ALL';
+        exports.model.saveHTML = '';
 
         // manage YUI tabs
         this.yuiTabs = new YAHOO.widget.TabView("chi2-TABS", {activeIndex:0});
@@ -168,8 +216,8 @@ TODO: localize jslint exceptions
                         // allow user to reset column names in browser
                         var tabstr = $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML;
                         if (tabstr.startsWith('<table id="chi2-result-tbl"')) {
-                            var c1 = $j('#chi2-p1-colname').val().toUpperCase();
-                            var c2 = $j('#chi2-p2-colname').val().toUpperCase();
+                            var c1 = $('chi2-p1-colname').value.toUpperCase().replace(/\W+/g, '_') + '_';
+                            var c2 = $('chi2-p2-colname').value.toUpperCase().replace(/\W+/g, '_') + '_';
                             var tab = document.getElementById('chi2-result-tbl');
                             tab.rows[0].cells[2].innerHTML = c1;
                             tab.rows[0].cells[3].innerHTML = 'FRC_' + c1;
@@ -192,6 +240,12 @@ TODO: localize jslint exceptions
             && exports.model.cutoff == parseInt($('chi2-cutoff').value)) {
                 $j('#goButton').attr('disabled', true);
             }
+        });
+        //alert('chi here 6.1');
+        $j('#exportButton').attr('disabled', true);
+        $j('#exportButton').click(function() {
+            exports.model.toCsv = true;
+            pgGo();
         });
         //alert('chi here 7');
         $j('#goButton').attr('disabled', true);
@@ -227,7 +281,6 @@ TODO: localize jslint exceptions
             if (e.which == 13) { $j('#goButton').click(); }  // Enter key
         });
 
-
     }
     exports.Init = Init;
     function Unload() {
@@ -236,7 +289,26 @@ TODO: localize jslint exceptions
     }
     exports.Unload = Unload;
 
+    function enableWidgets(disabled) {
+        $j('#exportButton').attr('disabled', disabled);
+        $j('#goButton').attr('disabled', disabled);
+        $j('#chi2-pgsize').attr('disabled', disabled);
+        $j('#chi2-cutoff').attr('disabled', disabled);
+        $j('#concepts-select').attr('disabled', disabled);
+    }
+    
+
     function pgGo() {
+        enableWidgets(true);
+        if (exports.model.toCsv) {
+            $('chi2-pgsize').value = exports.model.pgsize.toString();
+            $('chi2-cutoff').value = exports.model.cutoff.toString();
+            $j("#concepts-select").val(exports.model.concepts);
+            exports.model.saveHTML = $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML; 
+            $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = '<div class="results-progress">Exporting data, please wait...</div><div class="results-progressIcon"></div>';
+            exports.model.runTool();
+            return; // no UI update for export to CSV
+        } 
         var formSize = parseInt($('chi2-pgsize').value);
         if (!formSize || formSize < 1) {
             alert('View Results error: please enter a positive integer value for size');
@@ -254,18 +326,12 @@ TODO: localize jslint exceptions
         exports.model.concepts = $j("#concepts-select").val();
         $('chi2-pgsize').value = formSize;
         $('chi2-cutoff').value = cutoff;
-        $j('#goButton').attr('disabled', true);
-        $j('#chi2-pgsize').attr('disabled', true);
-        $j('#chi2-cutoff').attr('disabled', true);
-        $j('#concepts-select').attr('disabled', true);
         $j('#chi2-stats').text('');
         //remove old results
         $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-directions")[0].hide();
         $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = '<div class="results-progress">Please wait while the chi2 results are loaded...</div><div class="results-progressIcon"></div>';
         $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-finished")[0].show();
         exports.model.dirtyResultsData = false;
-        // give a brief pause for the GUI to catch up
-        //setTimeout('exports.model.runTool();', 50);
         exports.model.runTool();
     }
 

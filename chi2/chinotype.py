@@ -16,9 +16,9 @@ Options:
     -r PSID             Patient set ID for reference
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
-    -o --output         Create an chi2 output file
+    -o --output         Save chi2 csv output file
     -j --json           Return JSON output
-    -n limit            Limit to topN over/under represented facts
+    -n LIMIT            Output only LIMIT rows of over/under represented facts
     -f PATTERN          Filter output concept codes by PATTERN (e.g. i2b2metadata.SCHEMES.C_KEY)
     -x CUTOFF           Filter output where reference population patient/fact count >= CUTOFF
 
@@ -69,6 +69,10 @@ def config(arguments={}):
         opt['to_file'] = arguments['--output'] or False
         opt['to_json'] = arguments['--json'] or False
         opt['limit'] = arguments['-n'] or None
+        if opt['limit'] == 'ALL' or opt['limit'] == 'all': opt['limit'] = None
+        if opt['limit'] and not opt['limit'].isdigit():
+            log.error('Invalid -n, --limit (must be integer): {0}'.format(opt['limit']))    
+            foo = docopt(__doc__, argv=['--help'])
         opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
         opt['cutoff'] = arguments['-x'] or None
     return opt
