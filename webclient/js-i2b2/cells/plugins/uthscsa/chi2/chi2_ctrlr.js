@@ -169,7 +169,7 @@ TODO: localize jslint exceptions
                 $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = tabstr;
 
                 // Load the concept category drop down, if not already loaded
-                if ($j('#concepts-select').length == 1) {
+                if ($j('#concepts-select option').length == 1) {
                     for (p=0; p < resp.prefixes.length; p++) {
                         var code = resp.prefixes[p][0];
                         var desc = resp.prefixes[p][1];
