@@ -16,9 +16,11 @@ Options:
     -r PSID             Patient set ID for reference
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
-    -o --output         Create an chi2 output file
-    -n limit            Limit to topN over/under represented facts
+    -o --output         Save chi2 csv output file
+    -j --json           Return JSON output
+    -n LIMIT            Output only LIMIT rows of over/under represented facts
     -f PATTERN          Filter output concept codes by PATTERN (e.g. i2b2metadata.SCHEMES.C_KEY)
+    -x CUTOFF           Filter output where reference population patient/fact count >= CUTOFF
 
 QMID is the query master ID (from i2b2 QT tables). The latest query 
 instance/result for a given QMID will be used.
@@ -55,16 +57,24 @@ def config(arguments={}):
         opt['tpsid'] = None
         opt['rpsid'] = None
         opt['to_file'] = False
+        opt['to_json'] = False
         opt['limit'] = None
         opt['filter'] = None
+        opt['cutoff'] = None
     else:
         opt['qmid'] = arguments['-m'] or None
         opt['psid'] = arguments['-p'] or None
         opt['tpsid'] = arguments['-t'] or None
         opt['rpsid'] = arguments['-r'] or None
         opt['to_file'] = arguments['--output'] or False
+        opt['to_json'] = arguments['--json'] or False
         opt['limit'] = arguments['-n'] or None
-        opt['filter'] = list(set(arguments['-f']))  # set removes duplicates
+        if opt['limit'] == 'ALL' or opt['limit'] == 'all': opt['limit'] = None
+        if opt['limit'] and not opt['limit'].isdigit():
+            log.error('Invalid -n, --limit (must be integer): {0}'.format(opt['limit']))    
+            foo = docopt(__doc__, argv=['--help'])
+        opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
+        opt['cutoff'] = arguments['-x'] or None
     return opt
 
 
@@ -77,8 +87,9 @@ class Chi2:
         self.debug_dbopt(db)
         self.outfile = opt['output']['csv'] # filename
         self.to_file = opt['to_file']  # write to file? T/F
+        self.to_json = opt['to_json']  # return JSON output? T/F
         if self.to_file:
-            log.info('output={0}'.format(self.outfile))
+            log.info('output file={0}'.format(self.outfile))
         self.crc_host = db['crc_host']
         self.crc_port = db['crc_port']
         self.crc_user = db['crc_user']
@@ -100,12 +111,16 @@ class Chi2:
         self.chi_pw = db['chi_pw']
         self.pconcepts = db['chi_pconcepts']
         self.pcounts = db['chi_pcounts']
+        self.chipats = db['chi_pats']
         self.chi_name = None
         self.pats = []
         self.out_json = None
         self.limit = opt['limit']
         self.filter = opt['filter']
+        self.cutoff = opt['cutoff']
+        self.ref = 'TOTAL'  # default reference patient set
         self.status = ''
+        self.prepChi()      # create the chi2 tables if needed
 
 
     def debug_dbopt(self, db):
@@ -119,6 +134,7 @@ class Chi2:
         log.debug('       chi user={0}'.format(db['chi_user']))
         log.debug('  chi pconcepts={0}'.format(db['chi_pconcepts']))
         log.debug('    chi pcounts={0}'.format(db['chi_pcounts']))
+        log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
         log.debug('data metaschema={0}'.format(db['metaschema']))
 
@@ -170,37 +186,39 @@ class Chi2:
                 return str
             qdata = dict(zip([c.lower() for c in cols], list(rows[0])))
             log.debug('qdata={0}'.format(qdata))
-
-            sql = '''
-                select distinct patient_num
-                from {0}.qt_patient_set_collection
-                where result_instance_id = {1}
-            '''.format(self.schema, qdata['result_instance_id'])
-            cols, rows = do_log_sql(db, sql)
-            self.pats = rows
             self.qiid = qdata['query_instance_id']
             self.qrid = qdata['result_instance_id']
             self.chi_name = 'M{0}_I{1}_R{2}'.format(self.qmid, self.qiid, self.qrid)
 
+            sql = '''
+                select distinct patient_num
+                from {0}.qt_patient_set_collection pc
+                join {2} chipat on chipat.pn = pc.patient_num
+                where result_instance_id = {1}
+            '''.format(self.schema, self.qrid, self.chipats)
+            cols, rows = do_log_sql(db, sql)
+            self.pats = rows
+
         return self.runChi()
 
 
-    def runPSID_p2(self, asJSON=False, limit=None):
+    def runPSID_p2(self):
         if self.rpsid == self.tpsid:
             self.status = 'Job canceled, identical patient sets'
-            if asJSON:
+            if self.to_json:
                 self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         elif not self.checkIntersection():
-            if asJSON:
+            if self.to_json:
                 self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         else:
             # do the reference patient set first
             self.resetPS(self.rpsid)
-            self.runPSID(asJSON, limit, None)
+            self.runPSID()
             ref = self.chi_name
             # then do the test patient set, using the reference column name
             self.resetPS(self.tpsid)
-            self.runPSID(asJSON, limit, ref)
+            self.ref = ref
+            self.runPSID()
         return self.status
 
     def resetPS(self, psid):
@@ -210,12 +228,11 @@ class Chi2:
         self.qiid = None
         self.qrid = None
         self.chi_name = None
+        self.ref = None
 
 
-    def runPSID(self, asJSON=False, limit=None, ref='TOTAL'):
+    def runPSID(self):
         '''Run chi2 for an i2b2 patient set id'''
-        if limit is not None:
-            self.limit = limit
         pconcepts = self.pconcepts
         pcounts = self.pcounts
         host, port, service, user, pw = self.getCrcOpt()
@@ -280,24 +297,39 @@ class Chi2:
 
             sql = '''
                 select distinct patient_num
-                from {0}.qt_patient_set_collection
+                from {0}.qt_patient_set_collection pc
+                join {2} chipat on chipat.pn = pc.patient_num
                 where result_instance_id = {1}
-            '''.format(self.schema, self.qrid)
+            '''.format(self.schema, self.qrid, self.chipats)
             cols, rows = do_log_sql(db, sql)
             self.pats = rows
 
-            return self.runChi(asJSON, ref)
+            return self.runChi()
 
 
-    def runChi(self, asJSON=False, ref='TOTAL'):
-        pats = self.pats
+    def prepChi(self):
         schema = self.schema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
-        outfile = self.outfile
         host, port, service, user, pw, temp_table = self.getChiOpt()
         chi_dbi = self.getOracleDBI(host, port, service, user, pw, temp_table)
         with chi_dbi() as db:
+            # check if chipats exists
+            try:
+                log.debug('Checking if chi_pats table exists...')
+                cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(self.chipats))
+            except:
+                log.info('chi_pats table ({0}) does not exist, creating it...'.format(self.chipats))
+                sql = '''
+                -- patients who have at least some visit info, on which we will filter using joins
+                -- question: are there any patients missing this code that nevertheless have EMR
+                -- data other than demographics?
+                create table {0} as
+                select distinct patient_num pn
+                from {1}.observation_fact
+                where concept_cd like 'KUMC|DischargeDisposition:%'
+                '''.format(self.chipats, schema)
+                cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
             try:
                 log.debug('Checking if chi_pconcepts table exists...')
@@ -306,20 +338,10 @@ class Chi2:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
                 sql = '''
                 create table {0} as
-                with obs as (
-                    select distinct patient_num pn, concept_cd ccd
-                    from {1}.observation_fact
-                )
-                -- patients who have at least some visit info, on which we will filter using a join
-                -- open question: are there any patients missing this code that nevertheless have EMR
-                -- data other than demographics?
-                , good as (
-                    select distinct patient_num
-                    from {1}.observation_fact
-                    where concept_cd = 'KUMC|DischargeDisposition:0'
-                )
-                select obs.* from obs join good on pn = patient_num
-                '''.format(pconcepts, schema)
+                select distinct obs.patient_num pn, concept_cd ccd
+                from {1}.observation_fact obs
+                join {2} chipat on chipat.pn = obs.patient_num
+                '''.format(pconcepts, schema, self.chipats)
                 cols, rows = do_log_sql(db, sql)
 
             # create pcounts table if needed
@@ -362,6 +384,15 @@ class Chi2:
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
 
+
+    def runChi(self):
+        pats = self.pats
+        schema = self.schema
+        pconcepts = self.pconcepts
+        pcounts = self.pcounts
+        host, port, service, user, pw, temp_table = self.getChiOpt()
+        chi_dbi = self.getOracleDBI(host, port, service, user, pw, temp_table)
+        with chi_dbi() as db:
             runChi = True
             if self.qmid is not None:
                 col_name = self.checkRerunQMID(db)
@@ -429,15 +460,12 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'commit')
                 cols, rows = do_log_sql(db, 'drop table {0}'.format(chi_name))
 
-                if asJSON:
+                if self.to_json:
                     sql = 'select {0}, {1} from {2}'.format(chi_name, 'frc_%s' % chi_name, pcounts)
                     cols, rows = do_log_sql(db, sql)
 
-            fout = None
-            if self.to_file:
-                fout = outfile
-            if ref != None:
-                resp = self.chi2_output(db, chi_name, ref, pcounts, schema, fout, asJSON)
+            if self.ref:
+                resp = self.chi2_output(db)
             else:
                 resp = ''
 
@@ -454,7 +482,6 @@ class Chi2:
         pcounts = self.pcounts
         qmid = self.qmid
         chi_name = self.chi_name
-        outfile = self.outfile
         schema = self.schema
         pats = self.pats
         # if pcounts has QMID & patient count matches latest, return existing results
@@ -563,15 +590,16 @@ class Chi2:
         return sql
 
 
-    def chi2_output(self, db, colname, ref, pcounts, schema, outfile=None, asJSON=False):
-        if not outfile and not asJSON: 
+    def chi2_output(self, db):
+        # Skip filtering/output if not required
+        if not self.to_file and not self.to_json: 
             if len(self.filter) > 0:
                 log.info('Ignoring filters, no ouput format selected')
             self.status = 'Done, chi success!'
             return self.status
         # Limit results by number of rows results
         limstr = ''
-        if self.limit is not None:
+        if self.limit:
             limstr = 'where rank <= {0} or revrank <= {0}'.format(self.limit)
         # Filter results by concept code prefix (data domain)
         filterStr = self.getFilterSql()
@@ -580,9 +608,14 @@ class Chi2:
             if 'ALL' in self.filter: self.filter.remove('ALL')
             cols, rows = do_log_sql(db, filterStr, self.filter)
             log.info('Applied filters prefixes: {0}'.format([r[0] for r in rows]))
+        # Filter results by reference fact cutoff
+        cutoff = ''
+        if self.cutoff:
+            cutoff = 'and {0} >= {1}'.format(self.ref, self.cutoff)
+            log.info('Reference patient set cutoff: {0}'.format(self.cutoff))
         # Store prefixes for web UI concepts-selector drop down box
         prefixes = []
-        if asJSON:
+        if self.to_json:
             sql = '''
             select c_name name, c_description description
             from {0}.schemes
@@ -606,7 +639,9 @@ class Chi2:
             , {0}
             , frc_{0}
             , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
-            /* TODO: show rows where concepts in ref but not test patient set ?????
+            /* -- TODO: show rows where concepts in ref but not test patient set? For now
+               -- no, b/c test pat sets are limited to strict subsets of reference pat set.
+               -- but we may want to do something like this is semi-overlapping sets are allowed.
             , case
                 when frc_{3} = frc_{0} then
                     0
@@ -620,6 +655,7 @@ class Chi2:
             from {1}
             , cohort
             where frc_{3} > 0   -- reference patient set frequency
+            {5}
             --where frc_{3} > 0 or frc_{0} > 0
         )
         , ranked_data as (
@@ -636,13 +672,13 @@ class Chi2:
         union all
         select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
-        '''.format(colname, pcounts, limstr, ref, filterStr)
+        '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
 
         # Write results to file
-        if outfile is not None:
+        if self.to_file:
             quote = ['CCD', 'NAME']
-            with open(outfile, 'w') as file:
+            with open(self.outfile, 'w') as file:
                 file.write('%s\n' % ','.join(['\"{0}\"'.format(c) for c in cols]))
                 for row in rows:
                     data = dict(zip(cols, row))
@@ -658,7 +694,7 @@ class Chi2:
 
         # Return results/status
         status = 'Done, chi success!'
-        if asJSON:
+        if self.to_json:
             self.status = json.dumps({'cols': cols, 'rows': rows, 'prefixes': prefixes, 'status': status})
         else:
             self.status = status
@@ -692,8 +728,6 @@ if __name__=='__main__':
     args = docopt(__doc__, argv=argv[1:])
     if args['-p']:
         log.info(Chi2(args=args).runPSID())
-        # test prefixes
-        #log.info(json.loads(Chi2(args=args).runPSID(True))['prefixes'])
     elif args['-m']:
         log.info(Chi2(args=args).runQMID())
     elif args['-t'] and args['-r']:

@@ -18,8 +18,10 @@
                                                     <tr>
                                                         <td colspan=2>
                                                             Drag-n-drop patient set into the Compare and Reference (defaults to ALL patients) boxes below, then click the View Results tab to compare them.
-
+                                                            <br>
                                                             For best results the Compare patient set should be a subset of the Reference patient set.
+                                                            <br>
+                                                            Note: all patient sets will be filtered for active patients.
                                                         </td>
                                                     </tr>
                                                     <tr>
@@ -78,9 +80,14 @@
 										<!--<form>-->
 										<table class="results-header-pagination" cellpadding="0" cellspacing="0">
                                                                                     <tr>
-                                                                                        <td>size: <input type="text" id="chi2-pgsize" style="width:40px;" disabled></td>
-                                                                                        <td>concepts: </td><td><select id="concepts-select" style="width:450px;" disabled><option value="ALL">[ALL]</option></select></td>
+                                                                                        <td>size:<input type="text" id="chi2-pgsize" style="width:40px;" disabled></td>
+                                                                                        <td>cutoff:<input type="text" id="chi2-cutoff" style="width:40px;" disabled></td>
+                                                                                        <td>concepts:</td><td><select id="concepts-select" style="width:450px;" disabled><option value="ALL">[ALL]</option></select></td>
                                                                                         <td><input type="button" value="go" id="goButton" class="results-header-btn" disabled></td>
+                                                                                        <td>
+                                                                                            <input type="button" value="export" id="exportButton" class="results-header-btn" disabled />
+                                                                                            <a id='exportLink' hidden />
+                                                                                        </td>
                                                                                         <td><div id="chi2-stats"></div></td>
                                                                                     </tr>
                                                                                 </table>
