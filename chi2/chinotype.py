@@ -667,17 +667,17 @@ class Chi2:
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from data where ccd = 'TOTAL'
         union all
-        select ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
         '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
 
         # Write results to file
         if self.to_file:
-            quote = ['CCD', 'NAME']
+            quote = ['PREFIX', 'CCD', 'NAME']
             with open(self.outfile, 'w') as file:
                 file.write('%s\n' % ','.join(['\"{0}\"'.format(c) for c in cols]))
                 for row in rows:

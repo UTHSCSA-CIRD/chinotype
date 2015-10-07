@@ -88,29 +88,33 @@ TODO: localize jslint exceptions
 	DFTool.prototype.show_results = function (results) {
 	    this.resultsElt.hide();
 
-            // Display results
+            // Parse results data
             var resp = $j.parseJSON(results.str);
+
+            // Use UI defined column names
             var p1name = $('chi2-p1-colname').value.toUpperCase().replace(/\W+/g, '_');
             var p2name = $('chi2-p2-colname').value.toUpperCase().replace(/\W+/g, '_');
+            resp.cols[3] = p1name;
+            resp.cols[4] = 'FRC_' + p1name;
+            resp.cols[5] = p2name;
+            resp.cols[6] = 'FRC_' + p2name;
 
             if (resp.rows.length == 0) { 
+                // No results, display status message
                 $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = resp.status;
             }
             else if (exports.model.toCsv) { 
-                var headers = [];
-                for (var c=0; c < resp.cols.length; c++) {
-                    var data = resp.cols[c]; 
-                    if (c == 2) { data = p1name; }
-                    else if (c == 3) { data = 'FRC_' + p1name; }
-                    else if (c == 4) { data = p2name; }
-                    else if (c == 5) { data = 'FRC_' + p2name; }
-                    headers.push(data);
-                }
-                var csvOut = headers.join(',') + '\n';
+                // Export results to csv file via data URI
+                var csvOut = resp.cols.join(',') + '\n';
                 resp.rows.forEach(function(rdata, ri) {
                     var row = [];
                     resp.cols.forEach(function(cdata, ci) {
-                        if (resp.rows[ri][ci] != null && ci == 1) {
+                        if (ci == 0 || ci == 1) {
+                            // Wrap PREFIX, CCD in quotes
+                            row.push('"' + resp.rows[ri][ci] + '"');
+                        }
+                        else if (resp.rows[ri][ci] != null && ci == 2) {
+                            // Wrap concept NAME in quotes, handle embedded quotes
                             var rstr = resp.rows[ri][ci].replace(/\"/g, '""');
                             row.push('"' + rstr + '"');
                         }
@@ -121,45 +125,48 @@ TODO: localize jslint exceptions
                     var str = row.join(',');
                     csvOut += ri < resp.rows.length ? str + '\n' : str;
                 });
+                // Create data URI
                 $j('#exportLink').attr('href', 
                   'data:text/csv;charset=utf-8,' + encodeURIComponent(csvOut));
                 var filename = p1name + '_' +  p2name + '.csv';
                 $j('#exportLink').attr('download', filename);
                 //$j('#exportLink').click();  // doesn't work, use plain Javascript
                 document.getElementById("exportLink").click();
-                exports.model.toCsv = false;
+                // Restore previously displayed data
                 $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = 
                     exports.model.saveHTML;
+                exports.model.toCsv = false;
             }
             else {
                 var tabstr = '<table id="chi2-result-tbl" border="1" border-collapse="collapse">';
                 var r, c, p;
                 tabstr += '\n<tr>';
-                for (c=0; c < resp.cols.length; c++) {
-                    var data = resp.cols[c]; 
-                    if (c == 2) { data = p1name; }
-                    else if (c == 3) { data = 'FRC_' + p1name; }
-                    else if (c == 4) { data = p2name; }
-                    else if (c == 5) { data = 'FRC_' + p2name; }
-                    tabstr += '\n\t<th>' + data + '</th>';
+                // Header row (skip PREFIX, start at index==1)
+                for (c=1; c < resp.cols.length; c++) {
+                    tabstr += '\n\t<th>' + resp.cols[c] + '</th>';
                 }
                 tabstr += '\n</tr>';
                 var foundMid = false;
                 for (r=0; r < resp.rows.length; r++) {
                     if (!foundMid && resp.rows[r][resp.cols.length-1] == -1
                     && resp.rows[r][0] != 'TOTAL') {
+                        // Empty/gray row between positive/negative values
                         foundMid = true;
                         tabstr += '\n<tr bgcolor="#c0c0c0"><td colspan=' + resp.cols.length + '>...</td></tr>';
                     }
                     tabstr += '\n<tr>';
-                    for (c=0; c < resp.cols.length; c++) {
+                    // Data row (skip PREFIX, start at index==1)
+                    for (c=1; c < resp.cols.length; c++) {
                         var data =  resp.rows[r][c];
                         if (resp.rows[r][0] == 'TOTAL') {
-                            if (c != 0 && c != 2 && c != 4) { data = ''; }
+                            // TOTAL row should only show CCD and counts
+                            if (c != 1 && c != 3 && c != 5) { data = ''; }
                         } else {
                             if (data == null) { data = ''; }
-                            else if ((c == 3 || c == 5) && !isNaN(data)) { data = data.toFixed(5); }
-                            else if (c == 6 && !isNaN(data)) { data = data.toFixed(2); }
+                            // Frequencies rounded to 5 decimal places
+                            else if ((c == 4 || c == 6) && !isNaN(data)) { data = data.toFixed(5); }
+                            // Chi-squared rounded to 2 decimal places
+                            else if (c == 7 && !isNaN(data)) { data = data.toFixed(2); }
                         }
                         tabstr += '\n\t<td>' + data + '</td>';
                     }
