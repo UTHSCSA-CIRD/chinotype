@@ -1,4 +1,4 @@
-#!/user/bin/env python
+#!/usr/bin/env python
 '''
 Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
