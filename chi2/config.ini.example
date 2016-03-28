@@ -10,7 +10,7 @@ crc_service_name=service_name
 crc_user=data_builder
 crc_pw=SEKRET_PW_GOES_HERE
 
-; staging, user needs grants to create/alter/select on pconcepts, pcounts
+; chi, user needs grants to create/alter/select on pconcepts, pcounts
 chi_host=localhost
 chi_port=1234
 chi_service_name=service_name
@@ -18,9 +18,10 @@ chi_user=bos
 chi_pw=SEKRET_PW_GOES_HERE
 chi_pconcepts=schema.table_name
 chi_pcounts=schema.table_name
+chi_pats=schema.table_name
 
-; schema for both crc and staging
 schema=i2b2demodata
+metaschema=i2b2metadata
 
 [output]
 csv=output.csv

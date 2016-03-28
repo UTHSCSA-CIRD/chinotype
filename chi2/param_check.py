@@ -17,7 +17,7 @@ from functools import partial as pf_
 import argh
 from paste.request import parse_formvars
 from ocap import lafile
-from driver import Chi2
+from chinotype import Chi2
 
 import i2b2hive
 
@@ -59,11 +59,11 @@ def decode_concepts(txt):
 
 
 class JobSetUp(object):
-    mandatory_params = [('label', None),
-                        ('concepts', None),
-                        ('filename', None),
-                        ('pgsize', int),
-                        ('patient_set', int)]
+    mandatory_params = [('pgsize', None),
+                        ('cutoff', int),
+                        ('patient_set_1', int),
+                        ('patient_set_2', int),
+                        ('concepts', None)]
 
     def __init__(self, account_check, queue_request,
                  out_key='str'):
@@ -74,6 +74,7 @@ class JobSetUp(object):
         :param String out_key: object key where HTTP client
                                expects to find job summary
         '''
+        '''
         def queue(username, filename, **job_info):
             queue_request(username, dict(job_info,
                                          filename=filename,
@@ -82,10 +83,20 @@ class JobSetUp(object):
             return { out_key: 'job queued for %s: %s' % (username, filename)}
 
         self.queue_if_authz = account_check.restrict(lambda *args: queue)
-   
-        def do_job(username, patient_set, pgsize, **job_info):
-            log.info('running job for user=%s, patient_set=%s', username, patient_set)
-            chistr = Chi2().runPSID(patient_set, True, pgsize)
+        '''
+        def do_job(username, patient_set_1, patient_set_2, pgsize, cutoff, concepts, **job_info):
+            log.info('running job for user=%s, patient_set_1=%s, patient_set_2=%s', \
+                username, patient_set_1, patient_set_2)
+            args = ['-j', '-x', cutoff, '-n', pgsize]
+            if len(concepts) > 0:
+                args.extend(['-f', [concepts]])
+            if patient_set_1 == 0:
+                args.extend(['-p', patient_set_2])
+                chistr = Chi2(listargs=args).runPSID()
+            else:
+                args.extend(['-r', patient_set_1])
+                args.extend(['-t', patient_set_2])
+                chistr = Chi2(listargs=args).runPSID_p2()
             chijson = json.loads(chistr)
             log.info('response=%s', chijson['status'])
             return { out_key: chistr }
@@ -94,7 +105,7 @@ class JobSetUp(object):
 
     def __call__(self, env, start_response,
                  username, password,
-                 label, concepts, filename, pgsize, patient_set):
+                 pgsize, cutoff, patient_set_1, patient_set_2, concepts):
         '''Handle HTTP request per `WSGI`__.
 
         __ http://www.python.org/dev/peps/pep-0333/
@@ -104,9 +115,11 @@ class JobSetUp(object):
         :param start_response: access to start HTTP response
         :type start_response: (String, Seq[(String, String)]) => Unit
 
-        :param String label: i2b2 patient set label
-        :param String concepts: json-encoded data variables
-        :param String patient_set: patient_set id (numeral)
+        :param String pgsize: page size, # concepts to display (numeral)
+        :param String cutoff: min patient count in reference group to display
+        :param String patient_set_1: patient_set id (numeral)
+        :param String patient_set_2: patient_set id (numeral)
+        :param String concepts: concept_prefix filter (String)
 
         :rtype: Iterable[String]
         '''
@@ -114,19 +127,13 @@ class JobSetUp(object):
         log.info('checking i2b2 password for: %s', username)
         try:
             password = i2b2hive.pw_decode(password)
-            queue = self.queue_if_authz((username, password))
+            #queue = self.queue_if_authz((username, password))
             do_job = self.do_if_authz((username, password))
         except (i2b2hive.HiveError, ValueError) as ex:
             raise NotAuthorized(ex)
 
         log.debug('i2b2 credentials OK for %s', username)
-        #out = queue(username=username,
-        #            label=label,
-        #            concepts=concepts,
-        #            filename=filename,
-        #            patient_set=patient_set)
-
-        out = do_job(username, patient_set, pgsize)
+        out = do_job(username, patient_set_1, patient_set_2, pgsize, cutoff, concepts)
 
         start_response('200 OK',
                        [('content-type', 'application/json')])
