@@ -94,13 +94,14 @@ todo: consider eliminating jQuery dependency
     function mkWebPostable(url, Ajax) {
         //alert("mkWebPostable url:\n" + url);
         return {
-            post: function (params, onSuccess, onFailure) {
+            post: function (params, onSuccess, onFailure, on504) {
                 return new Ajax.Request(url, {
                     method: 'post',
                     parameters: params,
                     evalJSON: true,
 		    onSuccess: onSuccess,
-		    onFailure: onFailure
+		    onFailure: onFailure,
+                   on504: on504    // see http://api.prototypejs.org/ajax/
                 });
             }
         };
@@ -166,13 +167,17 @@ todo: consider eliminating jQuery dependency
                     that.show_results(xhr.responseJSON);
 		},
                 show_error = function (xhr) {
-                    that.resultsElt.html("<br />");
                     alert("error from back-end:\n" + xhr.responseText);
-		};
+                    that.show_error(xhr.responseText);
+		},
+                show_504 = function (xhr) {
+                    //alert("Your chi2 query continues to run in the background."); 
+                    that.show_504();
+                };
 
             //this.startFishing();
             var backend = this.chi2;
-            backend.post(params, show_results, show_error);
+            backend.post(params, show_results, show_error, show_504);
             
         };
 

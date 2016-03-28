@@ -18,6 +18,7 @@ Options:
     -c --config=FILE    Configuration file [default: config.ini]
     -o --output         Save chi2 csv output file
     -j --json           Return JSON output
+    -e --exists         Return extant data only; do not create new data columns
     -n LIMIT            Output only LIMIT rows of over/under represented facts
     -f PATTERN          Filter output concept codes by PATTERN (e.g. i2b2metadata.SCHEMES.C_KEY)
     -x CUTOFF           Filter output where reference population patient/fact count >= CUTOFF
@@ -61,6 +62,7 @@ def config(arguments={}):
         opt['limit'] = None
         opt['filter'] = None
         opt['cutoff'] = None
+        opt['exists'] = False
     else:
         opt['qmid'] = arguments['-m'] or None
         opt['psid'] = arguments['-p'] or None
@@ -75,6 +77,7 @@ def config(arguments={}):
             foo = docopt(__doc__, argv=['--help'])
         opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
         opt['cutoff'] = arguments['-x'] or None
+        opt['exists'] = arguments['--exists'] or False
     return opt
 
 
@@ -118,6 +121,7 @@ class Chi2:
         self.limit = opt['limit']
         self.filter = opt['filter']
         self.cutoff = opt['cutoff']
+        self.extant = opt['exists']  # return extant data only
         self.ref = 'TOTAL'  # default reference patient set
         self.status = ''
         self.prepChi()      # create the chi2 tables if needed
@@ -215,10 +219,17 @@ class Chi2:
             self.resetPS(self.rpsid)
             self.runPSID()
             ref = self.chi_name
-            # then do the test patient set, using the reference column name
-            self.resetPS(self.tpsid)
-            self.ref = ref
-            self.runPSID()
+            if self.extant and ref is None:
+                if self.to_json:
+                    self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
+            else:
+                # then do the test patient set, using the reference column name
+                self.resetPS(self.tpsid)
+                self.ref = ref
+                self.runPSID()
+                if self.extant and self.chi_name is None:
+                    if self.to_json:
+                        self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         return self.status
 
     def resetPS(self, psid):
@@ -259,6 +270,9 @@ class Chi2:
                     self.chi_name = rows[0][0]
                     self.psid_done = True
                     log.info('Using preexisting chi columns for PSID {0}'.format(self.psid))
+                elif self.extant:
+                    self.status = 'No data for PSID {0}, try running without -e/--exists'.format(self.psid)
+                    return self.status
             except:
                 raise
 
@@ -396,7 +410,7 @@ class Chi2:
             runChi = True
             if self.qmid is not None:
                 col_name = self.checkRerunQMID(db)
-                if col_name != '':
+                if col_name != '' or self.extant:
                     self.chi_name = col_name # already done, but col name may differ
                     runChi = False
             elif self.psid is not None and self.psid_done:
@@ -591,6 +605,12 @@ class Chi2:
 
 
     def chi2_output(self, db):
+        if (self.chi_name is None or self.chi_name == '') and self.extant:
+            # This should only happen for QMID 
+            self.status = 'No data for QMID {0}, try running without -e/--exists'.format(self.psid)
+            if self.to_json:
+                self.status = json.dumps({'cols': [], 'rows': [], 'status': status})
+            return self.status
         # Skip filtering/output if not required
         if not self.to_file and not self.to_json: 
             if len(self.filter) > 0:
