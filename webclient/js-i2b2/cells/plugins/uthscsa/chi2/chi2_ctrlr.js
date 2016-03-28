@@ -70,7 +70,8 @@ TODO: localize jslint exceptions
                     patient_set_2: this.pw2.pset_id(this.prs2),
                     pgsize: 'ALL',
                     cutoff: 1,
-                    concepts: 'ALL'
+                    concepts: 'ALL',
+                    extant: 1
                 };
             }
             else {
@@ -80,16 +81,29 @@ TODO: localize jslint exceptions
                     patient_set_2: this.pw2.pset_id(this.prs2),
                     pgsize: exports.model.pgsize,
                     cutoff: exports.model.cutoff,
-                    concepts: exports.model.concepts
+                    concepts: exports.model.concepts,
+                    extant: exports.model.extant
                 };
             }
 	};
 
+	DFTool.prototype.show_error = function (responseText) {
+            $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = responseText;
+            exports.model.extant = 0;
+        };
+
+	DFTool.prototype.show_504 = function () {
+            exports.model.extant = 1;
+            exports.model.runTool();
+        };
+
 	DFTool.prototype.show_results = function (results) {
 	    this.resultsElt.hide();
+            exports.model.extant = 0;
 
             // Parse results data
             var resp = $j.parseJSON(results.str);
+            //alert(resp.status);
 
             // Use UI defined column names
             var p1name = $('chi2-p1-colname').value.toUpperCase().replace(/\W+/g, '_');
@@ -100,6 +114,11 @@ TODO: localize jslint exceptions
             resp.cols[6] = 'FRC_' + p2name;
 
             if (resp.rows.length == 0) { 
+                if (resp.status.startsWith("No data for PSID")) { 
+                    DFTool.prototype.show_504();
+                    return; 
+                }
+
                 // No results, display status message
                 $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = resp.status;
             }
@@ -203,6 +222,7 @@ TODO: localize jslint exceptions
         exports.model.cutoff = 10;
         exports.model.concepts = 'ALL';
         exports.model.saveHTML = '';
+        exports.model.extant = 0;
 
         // manage YUI tabs
         this.yuiTabs = new YAHOO.widget.TabView("chi2-TABS", {activeIndex:0});
@@ -336,7 +356,8 @@ TODO: localize jslint exceptions
         $j('#chi2-stats').text('');
         //remove old results
         $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-directions")[0].hide();
-        $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = '<div class="results-progress">Please wait while the chi2 results are loaded...</div><div class="results-progressIcon"></div>';
+        $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-chi2")[0].innerHTML = '<div class="results-progress"><div id="refWork2QS" style="display: inline;"><img width="16" border="0" height="16" title="Refresh Workplace" alt="Refresh Workplace" src="assets/images/spin.gif">Please wait while the chi2 results are loaded...</div></div>';
+
         $j("DIV#analysis-mainDiv DIV#chi2-TABS DIV.results-finished")[0].show();
         exports.model.dirtyResultsData = false;
         exports.model.runTool();
