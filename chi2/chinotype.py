@@ -367,8 +367,8 @@ class Chi2:
                 left join {1}.concept_dimension cd 
                 on concept_path like c_dimcode||'%' 
                 left join {1}.observation_fact obs 
-                join {2} chipat on chipat.pn = obs.patient_num
                 on cd.concept_cd = obs.concept_cd 
+                join {2} chipat on chipat.pn = obs.patient_num
                 -- selection criteria for specific types of branch nodes
                 where ( {5} ) and 
                 -- selection criteria affecting all branch nodes
