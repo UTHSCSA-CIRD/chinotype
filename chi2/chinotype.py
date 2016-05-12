@@ -4,9 +4,9 @@ Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
 Usage:
-   driver.py [options][-f PATTERN]... -m QMID
-   driver.py [options][-f PATTERN]... -p PSID
-   driver.py [options][-f PATTERN]... -t PSID -r PSID
+   chinotype.py [options][-f PATTERN]... -m QMID
+   chinotype.py [options][-f PATTERN]... -p PSID
+   chinotype.py [options][-f PATTERN]... -t PSID -r PSID
 
 Options:
     -h --help           Show this screen
