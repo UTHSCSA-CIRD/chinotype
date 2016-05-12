@@ -21,10 +21,22 @@ chi_pconcepts=schema.table_name
 chi_pcounts=schema.table_name
 chi_pats=schema.table_name
 
-; SQL snippet that says which patterns in the ontology table correspond to branch nodes (folder nodes) of interest
+; SQL snippet that says which patterns in the ontology table correspond to 
+; branch nodes (folder nodes) of interest
+; 'ICD9:___' and 'ICD9:___._' match ICD9 codes down to the first four digits 
+; (5th digit gets too granular and sparse). In UTHSCSA's i2b2, all '[_____]%' 
+; are drug categories (yours is likely different). In UTHSCSA's i2b2, 
+; procedure branch nodes have paths that end in '\A________\' whereas leaf 
+; nodes lack the leading 'A'. Your site is likely different.
 chi_branchnodes=c_basecode like 'ICD9:___' or c_basecode like 'ICD9:___._' or c_name like '[_____]%' or c_fullname like '\i2b2\Procedures\PRC\Meta%\A________\'
-; SQL snippet that applies to further limit all the above results, probably not very site-specific
+
+; SQL snippet that applies to further limit all the above results, probably not 
+; very site-specific. The c_totalnum restriction is to avoid the long tail of 
+; branch nodes too sparsely populated to be meaningfully interpreted anyway. 
+; The c_visualattributes explicitly filters for branch nodes (active, hidden,
+; or inactive we don't care-- this is data MINING)
 chi_allbranchnodes=c_totalnum > 10 and c_visualattributes like 'F%'
+
 ; The name of the ontology table in metaschema to be used to find branch nodes
 chi_termtable=i2b2
 
