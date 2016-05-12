@@ -100,6 +100,7 @@ class Chi2:
         self.crc_pw = db['crc_pw']
         self.branchnodes = db['chi_branchnodes']
         self.allbranchnodes = db['chi_allbranchnodes']
+        self.termtable = db['chi_termtable']
         self.schema = db['schema']
         self.metaschema = db['metaschema']
         self.qmid = opt['qmid']
@@ -143,6 +144,9 @@ class Chi2:
         log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
         log.debug('data metaschema={0}'.format(db['metaschema']))
+        log.debug('   branch nodes={0}'.format(db['chi_branchnodes']))
+        log.debug('all branch nodes={0}'.format(db['chi_allbranchnodes']))
+        log.debug('     term table={0}'.format(db['chi_termtable']))
 
 
     def getCrcOpt(self):
@@ -359,20 +363,26 @@ class Chi2:
                 join {2} chipat on chipat.pn = obs.patient_num
                 union all
                 select distinct obs.patient_num pn, c_basecode ccd 
-                from {3}.heron_terms ht 
+                from {3}.{4} 
                 left join {1}.concept_dimension cd 
                 on concept_path like c_dimcode||'%' 
                 left join {1}.observation_fact obs 
                 join {2} chipat on chipat.pn = obs.patient_num
                 on cd.concept_cd = obs.concept_cd 
                 -- selection criteria for specific types of branch nodes
-                where ( {4} ) and 
+                where ( {5} ) and 
                 -- selection criteria affecting all branch nodes
-                {5}
-                '''.format(pconcepts, schema, self.chipats, self.metaschema, self.branchnodes, self.allbranchnodes)
-                import pdb;pdb.set_trace()
+                {6}
+                '''.format(pconcepts, schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
-
+                sql = '''
+                create index {0}_pn_idx on {0} (pn)
+                '''.format(pconcepts)
+                cols, rows = do_log_sql(db, sql)
+                sql = '''
+                create index {0}_ccd_idx on {0} (ccd)
+                '''.format(pconcepts)
+                cols, rows = do_log_sql(db, sql)
             # create pcounts table if needed
             try:
                 log.debug('Checking if chi_pcounts table exists...')
@@ -396,7 +406,12 @@ class Chi2:
                 ) chicon
                 left join (
                     select concept_cd, min(name_char) name
-                    from {2}.concept_dimension
+                    from (
+		      select c_basecode concept_cd,c_name name from {3}.{4}
+		      where ({5}) and {6}
+		      union all
+		      select concept_cd,name_char name from {2}.concept_dimension
+		      )
                     group by concept_cd
                 ) cd on cd.concept_cd = chicon.ccd
 
@@ -405,6 +420,7 @@ class Chi2:
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
                 '''.format(pcounts, pconcepts, schema)
+                import pdb;pdb.set_trace()
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''
