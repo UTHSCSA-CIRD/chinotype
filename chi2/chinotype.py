@@ -350,6 +350,11 @@ class Chi2:
                 where concept_cd like 'KUMC|DischargeDisposition:%'
                 '''.format(self.chipats, schema)
                 cols, rows = do_log_sql(db, sql)
+                sql = '''
+                create index {0}_idx
+                on {0} (pn)
+                '''.format(self.chipats)
+                cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
             try:
                 log.debug('Checking if chi_pconcepts table exists...')
