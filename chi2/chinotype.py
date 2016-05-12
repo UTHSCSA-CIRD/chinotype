@@ -433,6 +433,19 @@ class Chi2:
                 on {0} (ccd)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
+                # prefix is for filtering the output, so needs an index
+                sql = '''
+                create index {0}_pfx_idx
+                on {0} (prefix)
+                '''.format(pcounts)
+                cols, rows = do_log_sql(db, sql)
+                # total is used for filtering by threshold, so needs an index
+                sql = '''
+                create index {0}_tl_idx
+                on {0} (total)
+                '''.format(pcounts)
+                cols, rows = do_log_sql(db, sql)
+
 
 
     def runChi(self):
