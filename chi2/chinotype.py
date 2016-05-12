@@ -98,6 +98,8 @@ class Chi2:
         self.crc_user = db['crc_user']
         self.crc_service =  db['crc_service_name']
         self.crc_pw = db['crc_pw']
+        self.branchnodes = db['chi_branchnodes']
+        self.allbranchnodes = db['chi_allbranchnodes']
         self.schema = db['schema']
         self.metaschema = db['metaschema']
         self.qmid = opt['qmid']
@@ -355,7 +357,21 @@ class Chi2:
                 select distinct obs.patient_num pn, concept_cd ccd
                 from {1}.observation_fact obs
                 join {2} chipat on chipat.pn = obs.patient_num
-                '''.format(pconcepts, schema, self.chipats)
+                union all
+                select distinct obs.patient_num pn, c_basecode ccd 
+                from {3}.heron_terms ht 
+                left join {1}.concept_dimension cd 
+                on concept_path like c_dimcode||'%' 
+                left join {1}.observation_fact obs 
+                join {2} chipat on chipat.pn = obs.patient_num
+                on cd.concept_cd = obs.concept_cd 
+                where ( 
+                -- selection criteria for specific types of branch nodes
+                c_basecode like 'ICD9:___' or c_basecode like 'ICD9:___._' or c_name like '[_____]%' or c_fullname like '\i2b2\Procedures\PRC\Meta%\A________\'
+                ) and 
+                -- selection criteria affecting all branch nodes
+                c_totalnum > 10 and c_visualattributes like 'F%'
+                '''.format(pconcepts, schema, self.chipats, self.metaschema)
                 import pdb;pdb.set_trace()
                 cols, rows = do_log_sql(db, sql)
 
