@@ -365,13 +365,11 @@ class Chi2:
                 left join {1}.observation_fact obs 
                 join {2} chipat on chipat.pn = obs.patient_num
                 on cd.concept_cd = obs.concept_cd 
-                where ( 
                 -- selection criteria for specific types of branch nodes
-                c_basecode like 'ICD9:___' or c_basecode like 'ICD9:___._' or c_name like '[_____]%' or c_fullname like '\i2b2\Procedures\PRC\Meta%\A________\'
-                ) and 
+                where ( {4} ) and 
                 -- selection criteria affecting all branch nodes
-                c_totalnum > 10 and c_visualattributes like 'F%'
-                '''.format(pconcepts, schema, self.chipats, self.metaschema)
+                {5}
+                '''.format(pconcepts, schema, self.chipats, self.metaschema, self.branchnodes, self.allbranchnodes)
                 import pdb;pdb.set_trace()
                 cols, rows = do_log_sql(db, sql)
 
