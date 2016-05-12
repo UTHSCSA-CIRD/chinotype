@@ -356,6 +356,7 @@ class Chi2:
                 from {1}.observation_fact obs
                 join {2} chipat on chipat.pn = obs.patient_num
                 '''.format(pconcepts, schema, self.chipats)
+                import pdb;pdb.set_trace()
                 cols, rows = do_log_sql(db, sql)
 
             # create pcounts table if needed
