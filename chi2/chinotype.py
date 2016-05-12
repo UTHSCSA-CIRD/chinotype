@@ -331,6 +331,7 @@ class Chi2:
         schema = self.schema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
+        chischemes = self.chischemes
         host, port, service, user, pw, temp_table = self.getChiOpt()
         chi_dbi = self.getOracleDBI(host, port, service, user, pw, temp_table)
         with chi_dbi() as db:
@@ -444,6 +445,19 @@ class Chi2:
                 on {0} (total)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
+	    try:
+	      log.debug('Checking if empirical schemes table exists...')
+	      cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
+	    except:
+	      log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
+	      sql = '''
+	      create table {0} as
+	      select prefix c_name, min(name) c_description 
+	      from {1} group by prefix
+	      '''.format(pcounts,chischemes)
+	      cols, rows = do_log_sql(db,sql)
+	      sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
+	      cols, rows = do_log_sql(db,sql)
 
 
 
@@ -641,7 +655,7 @@ class Chi2:
 
 
     def getFilterSql(self):
-        sql = 'select c_name from {0}.schemes'.format(self.metaschema)
+        sql = 'select c_name from {0}'.format(self.chischemes)
         if 'ALL' in self.filter:
             sql += '\nwhere 1=1'
         elif len(self.filter) > 0:
@@ -686,9 +700,9 @@ class Chi2:
         if self.to_json:
             sql = '''
             select c_name name, c_description description
-            from {0}.schemes
+            from {0}
             order by c_name
-            '''.format(self.metaschema)
+            '''.format(self.chischemes)
             cols, rows = do_log_sql(db, sql)
             prefixes = [(r[0], r[1]) for r in rows]
         # Get results data 
