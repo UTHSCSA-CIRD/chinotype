@@ -405,7 +405,7 @@ class Chi2:
                     group by ccd
                 ) chicon
                 left join (
-                    select concept_cd, min(name_char) name
+                    select concept_cd, min(name) name
                     from (
 		      select c_basecode concept_cd,c_name name from {3}.{4}
 		      where ({5}) and {6}
