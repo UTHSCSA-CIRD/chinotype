@@ -419,7 +419,7 @@ class Chi2:
                 select 'TOTAL' prefix, 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
-                '''.format(pcounts, pconcepts, schema)
+                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 import pdb;pdb.set_trace()
                 cols, rows = do_log_sql(db, sql)
 
