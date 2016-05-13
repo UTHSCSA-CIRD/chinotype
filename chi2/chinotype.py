@@ -102,6 +102,7 @@ class Chi2:
         self.allbranchnodes = db['chi_allbranchnodes']
         self.termtable = db['chi_termtable']
         self.schema = db['schema']
+        self.chischemes = db['chischemes']
         self.metaschema = db['metaschema']
         self.qmid = opt['qmid']
         self.qiid = None
