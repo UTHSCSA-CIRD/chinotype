@@ -448,29 +448,29 @@ class Chi2:
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
 	    try:
-	      log.debug('Checking if empirical schemes table exists...')
-	      cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
+		log.debug('Checking if empirical schemes table exists...')
+		cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
 	    except:
-	      log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
-	      sql = '''
-	      create table {0} as
-	      select c_key, prefix c_name, c_description 
-	      from (select distinct prefix from {1}) pct
-	      left join {2}.schemes
-	      on prefix = {2}.schemes.c_name
-	      where c_name is not null
-	      '''.format(chischemes,pcounts,metaschema)
-	      cols, rows = do_log_sql(db,sql)
-	      sql = '''
-	      update table {0} set c_key = c_name where c_key is null
-	      '''.format(chischemes)
-	      cols, rows = do_log_sql(db,sql)
-	      sql = '''
-	      update table {0} set c_description = c_name where c_description is null
-	      '''.format(chischemes)
-	      cols, rows = do_log_sql(db,sql)
-	      sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
-	      cols, rows = do_log_sql(db,sql)
+		log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
+		sql = '''
+		create table {0} as
+		select c_key, prefix c_name, c_description 
+		from (select distinct prefix from {1}) pct
+		left join {2}.schemes
+		on prefix = {2}.schemes.c_name
+		where prefix is not null
+		'''.format(chischemes,pcounts,metaschema)
+		cols, rows = do_log_sql(db,sql)
+		sql = '''
+		update table {0} set c_key = c_name where c_key is null
+		'''.format(chischemes)
+		cols, rows = do_log_sql(db,sql)
+		sql = '''
+		update table {0} set c_description = c_name where c_description is null
+		'''.format(chischemes)
+		cols, rows = do_log_sql(db,sql)
+		sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
+		cols, rows = do_log_sql(db,sql)
 
 
 
