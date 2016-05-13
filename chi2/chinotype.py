@@ -676,7 +676,7 @@ class Chi2:
         #for p in range(0, len(self.filter)):
         for p in self.filter:
             if p != 'ALL':
-                sql += '\nor replace(c_key,\'_\',\' \') like replace({0},\'_\',\' \') || \'%\''.format(p)
+                sql += '\nor replace(c_key,\'_\',\' \') like replace(\'{0}\',\'_\',\' \') || \'%\''.format(p)
         return sql
 
 
