@@ -458,7 +458,16 @@ class Chi2:
 	      from (select distinct prefix from {1}) pct
 	      left join {2}.schemes
 	      on prefix = {2}.schemes.c_name
+	      where c_name is not null
 	      '''.format(chischemes,pcounts,metaschema)
+	      cols, rows = do_log_sql(db,sql)
+	      sql = '''
+	      update table {0} set c_key = c_name where c_key is null
+	      '''.format(chischemes)
+	      cols, rows = do_log_sql(db,sql)
+	      sql = '''
+	      update table {0} set c_description = c_name where c_description is null
+	      '''.format(chischemes)
 	      cols, rows = do_log_sql(db,sql)
 	      sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
 	      cols, rows = do_log_sql(db,sql)
@@ -468,7 +477,6 @@ class Chi2:
     def runChi(self):
         pats = self.pats
         schema = self.schema
-        metaschema = self.metaschema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
         host, port, service, user, pw, temp_table = self.getChiOpt()
@@ -667,7 +675,7 @@ class Chi2:
             sql += '\nwhere 1=0'
         for p in range(0, len(self.filter)):
             if self.filter[p] != 'ALL':
-                sql += '\nor c_key like :{0} || \'%\''.format(p)
+                sql += '\nor replace(c_key,\'_\',\' \') like replace(:{0},\'_\',\' \') || \'%\''.format(p)
         return sql
 
 
