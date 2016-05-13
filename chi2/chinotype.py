@@ -457,7 +457,7 @@ class Chi2:
 	      from (select distinct prefix from {1}) pct
 	      left join {2}.schemes
 	      on prefix = {2}.schemes.c_name
-	      '''.format(chischemes,pcounts,schema)
+	      '''.format(chischemes,pcounts,metaschema)
 	      cols, rows = do_log_sql(db,sql)
 	      sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
 	      cols, rows = do_log_sql(db,sql)
@@ -467,6 +467,7 @@ class Chi2:
     def runChi(self):
         pats = self.pats
         schema = self.schema
+        metaschema = self.metaschema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
         host, port, service, user, pw, temp_table = self.getChiOpt()
