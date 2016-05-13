@@ -330,6 +330,7 @@ class Chi2:
 
     def prepChi(self):
         schema = self.schema
+        metaschema = self.metaschema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
         chischemes = self.chischemes
