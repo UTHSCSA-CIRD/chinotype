@@ -672,13 +672,13 @@ class Chi2:
     def getFilterSql(self):
         sql = 'select c_name from {0}'.format(self.chischemes)
         if 'ALL' in self.filter:
-            sql += '\nwhere 1=1'
+            sql += ' where 1=1'
         elif len(self.filter) > 0:
-            sql += '\nwhere 1=0'
+            sql += ' where 1=0'
         #for p in range(0, len(self.filter)):
         for p in self.filter:
             if p != 'ALL':
-                sql += '\nor replace(c_key,\'_\',\' \') like replace(\'{0}\',\'_\',\' \') || \'%\''.format(p)
+                sql += ' or c_key like \'{0}\' || \'%\''.format(p)
         return sql
 
 
