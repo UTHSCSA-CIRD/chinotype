@@ -455,7 +455,7 @@ class Chi2:
 	      create table {0} as
 	      select prefix c_name, min(name) c_description 
 	      from {1} group by prefix
-	      '''.format(pcounts,chischemes)
+	      '''.format(chischemes,pcounts)
 	      cols, rows = do_log_sql(db,sql)
 	      sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
 	      cols, rows = do_log_sql(db,sql)
