@@ -704,7 +704,7 @@ class Chi2:
         if len(self.filter) > 0:
             log.info('Filters: {0}'.format(self.filter))
             if 'ALL' in self.filter: self.filter.remove('ALL')
-            cols, rows = do_log_sql(db, filterStr, self.filter)
+            cols, rows = do_log_sql(db, filterStr)
             log.info('Applied filters prefixes: {0}'.format([r[0] for r in rows]))
         # Filter results by reference fact cutoff
         cutoff = ''
@@ -771,7 +771,7 @@ class Chi2:
         select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
         from ranked_data {2}
         '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
-        cols, rows = do_log_sql(db, sql, self.filter)
+        cols, rows = do_log_sql(db, sql)
 
         # Write results to file
         if self.to_file:
