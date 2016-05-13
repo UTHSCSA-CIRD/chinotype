@@ -453,9 +453,11 @@ class Chi2:
 	      log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
 	      sql = '''
 	      create table {0} as
-	      select prefix c_name, min(name) c_description 
-	      from {1} group by prefix
-	      '''.format(chischemes,pcounts)
+	      select c_key, prefix c_name, c_description 
+	      from (select distinct prefix from {1}) pct
+	      left join {2}.schemes
+	      on prefix = schemes.c_name
+	      '''.format(chischemes,pcounts,schema)
 	      cols, rows = do_log_sql(db,sql)
 	      sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
 	      cols, rows = do_log_sql(db,sql)
