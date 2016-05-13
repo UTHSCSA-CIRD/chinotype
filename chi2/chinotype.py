@@ -462,14 +462,15 @@ class Chi2:
 		'''.format(chischemes,pcounts,metaschema)
 		cols, rows = do_log_sql(db,sql)
 		sql = '''
-		update table {0} set c_key = c_name where c_key is null
+		update {0} set c_key = c_name where c_key is null
 		'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
+		do_log_sql(db,'commit')
 		sql = '''
-		update table {0} set c_description = c_name where c_description is null
+		update {0} set c_description = c_name where c_description is null
 		'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
-		db.commit()
+		do_log_sql(db,'commit')
 		sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
 
