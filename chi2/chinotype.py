@@ -4,9 +4,9 @@ Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
 Usage:
-   driver.py [options][-f PATTERN]... -m QMID
-   driver.py [options][-f PATTERN]... -p PSID
-   driver.py [options][-f PATTERN]... -t PSID -r PSID
+   chinotype.py [options][-f PATTERN]... -m QMID
+   chinotype.py [options][-f PATTERN]... -p PSID
+   chinotype.py [options][-f PATTERN]... -t PSID -r PSID
 
 Options:
     -h --help           Show this screen
@@ -98,7 +98,11 @@ class Chi2:
         self.crc_user = db['crc_user']
         self.crc_service =  db['crc_service_name']
         self.crc_pw = db['crc_pw']
+        self.branchnodes = db['chi_branchnodes']
+        self.allbranchnodes = db['chi_allbranchnodes']
+        self.termtable = db['chi_termtable']
         self.schema = db['schema']
+        self.chischemes = db['chischemes']
         self.metaschema = db['metaschema']
         self.qmid = opt['qmid']
         self.qiid = None
@@ -141,6 +145,9 @@ class Chi2:
         log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
         log.debug('data metaschema={0}'.format(db['metaschema']))
+        log.debug('   branch nodes={0}'.format(db['chi_branchnodes']))
+        log.debug('all branch nodes={0}'.format(db['chi_allbranchnodes']))
+        log.debug('     term table={0}'.format(db['chi_termtable']))
 
 
     def getCrcOpt(self):
@@ -323,8 +330,10 @@ class Chi2:
 
     def prepChi(self):
         schema = self.schema
+        metaschema = self.metaschema
         pconcepts = self.pconcepts
         pcounts = self.pcounts
+        chischemes = self.chischemes
         host, port, service, user, pw, temp_table = self.getChiOpt()
         chi_dbi = self.getOracleDBI(host, port, service, user, pw, temp_table)
         with chi_dbi() as db:
@@ -344,6 +353,11 @@ class Chi2:
                 where concept_cd like 'KUMC|DischargeDisposition:%'
                 '''.format(self.chipats, schema)
                 cols, rows = do_log_sql(db, sql)
+                sql = '''
+                create index {0}_idx
+                on {0} (pn)
+                '''.format(self.chipats)
+                cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
             try:
                 log.debug('Checking if chi_pconcepts table exists...')
@@ -355,9 +369,28 @@ class Chi2:
                 select distinct obs.patient_num pn, concept_cd ccd
                 from {1}.observation_fact obs
                 join {2} chipat on chipat.pn = obs.patient_num
-                '''.format(pconcepts, schema, self.chipats)
+                union all
+                select distinct obs.patient_num pn, c_basecode ccd 
+                from {3}.{4} 
+                left join {1}.concept_dimension cd 
+                on concept_path like c_dimcode||'%' 
+                left join {1}.observation_fact obs 
+                on cd.concept_cd = obs.concept_cd 
+                join {2} chipat on chipat.pn = obs.patient_num
+                -- selection criteria for specific types of branch nodes
+                where ( {5} ) and 
+                -- selection criteria affecting all branch nodes
+                {6}
+                '''.format(pconcepts, schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
-
+                sql = '''
+                create index {0}_pn_idx on {0} (pn)
+                '''.format(pconcepts)
+                cols, rows = do_log_sql(db, sql)
+                sql = '''
+                create index {0}_ccd_idx on {0} (ccd)
+                '''.format(pconcepts)
+                cols, rows = do_log_sql(db, sql)
             # create pcounts table if needed
             try:
                 log.debug('Checking if chi_pcounts table exists...')
@@ -380,8 +413,13 @@ class Chi2:
                     group by ccd
                 ) chicon
                 left join (
-                    select concept_cd, min(name_char) name
-                    from {2}.concept_dimension
+                    select concept_cd, min(name) name
+                    from (
+		      select c_basecode concept_cd,c_name name from {3}.{4}
+		      where ({5}) and {6}
+		      union all
+		      select concept_cd,name_char name from {2}.concept_dimension
+		      )
                     group by concept_cd
                 ) cd on cd.concept_cd = chicon.ccd
 
@@ -389,7 +427,7 @@ class Chi2:
                 select 'TOTAL' prefix, 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
-                '''.format(pcounts, pconcepts, schema)
+                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''
@@ -397,6 +435,45 @@ class Chi2:
                 on {0} (ccd)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
+                # prefix is for filtering the output, so needs an index
+                sql = '''
+                create index {0}_pfx_idx
+                on {0} (prefix)
+                '''.format(pcounts)
+                cols, rows = do_log_sql(db, sql)
+                # total is used for filtering by threshold, so needs an index
+                sql = '''
+                create index {0}_tl_idx
+                on {0} (total)
+                '''.format(pcounts)
+                cols, rows = do_log_sql(db, sql)
+	    try:
+		log.debug('Checking if empirical schemes table exists...')
+		cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
+	    except:
+		log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
+		sql = '''
+		create table {0} as
+		select c_key, prefix c_name, c_description 
+		from (select distinct prefix from {1}) pct
+		left join {2}.schemes
+		on prefix = {2}.schemes.c_name
+		where prefix is not null
+		'''.format(chischemes,pcounts,metaschema)
+		cols, rows = do_log_sql(db,sql)
+		sql = '''
+		update {0} set c_key = c_name where c_key is null
+		'''.format(chischemes)
+		cols, rows = do_log_sql(db,sql)
+		do_log_sql(db,'commit')
+		sql = '''
+		update {0} set c_description = c_name where c_description is null
+		'''.format(chischemes)
+		cols, rows = do_log_sql(db,sql)
+		do_log_sql(db,'commit')
+		sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
+		cols, rows = do_log_sql(db,sql)
+
 
 
     def runChi(self):
@@ -593,9 +670,9 @@ class Chi2:
 
 
     def getFilterSql(self):
-        sql = 'select c_name from {0}.schemes'.format(self.metaschema)
+        sql = 'select c_name from {0}'.format(self.chischemes)
         if 'ALL' in self.filter:
-            sql += '\nwhere 1=1'
+            sql += ' where 1=1'
         elif len(self.filter) > 0:
             sql += '\nwhere 1=0'
         for p in range(0, len(self.filter)):
@@ -638,9 +715,9 @@ class Chi2:
         if self.to_json:
             sql = '''
             select c_name name, c_description description
-            from {0}.schemes
+            from {0}
             order by c_name
-            '''.format(self.metaschema)
+            '''.format(self.chischemes)
             cols, rows = do_log_sql(db, sql)
             prefixes = [(r[0], r[1]) for r in rows]
         # Get results data 
