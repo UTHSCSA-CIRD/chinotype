@@ -674,11 +674,10 @@ class Chi2:
         if 'ALL' in self.filter:
             sql += ' where 1=1'
         elif len(self.filter) > 0:
-            sql += ' where 1=0'
-        #for p in range(0, len(self.filter)):
-        for p in self.filter:
-            if p != 'ALL':
-                sql += ' or c_key like \'{0}\' || \'%\''.format(p)
+            sql += '\nwhere 1=0'
+        for p in range(0, len(self.filter)):
+            if self.filter[p] != 'ALL':
+                sql += '\nor c_key like :{0} || \'%\''.format(p)
         return sql
 
 
