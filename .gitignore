@@ -1,5 +1,9 @@
 # User defined
 config.ini
+## temp files
+*.kate-swp
+## scratch files
+*_scratch.sql
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
