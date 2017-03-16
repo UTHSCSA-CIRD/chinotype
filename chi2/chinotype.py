@@ -366,10 +366,12 @@ class Chi2:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
                 sql = '''
                 create table {0} as
+                -- your basic list of distinct patients and raw concept codes from the datamart (1)
                 select distinct obs.patient_num pn, concept_cd ccd
                 from {1}.observation_fact obs
                 join {2} chipat on chipat.pn = obs.patient_num
                 union all
+                -- distinct patients and certain branch nodes, as gathered from the ontology (3).(4)
                 select distinct obs.patient_num pn, c_basecode ccd 
                 from {3}.{4} 
                 left join {1}.concept_dimension cd 
