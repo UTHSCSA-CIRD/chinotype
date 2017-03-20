@@ -117,6 +117,7 @@ class Chi2:
         self.chi_service = db['chi_service_name']
         self.chi_pw = db['chi_pw']
         self.pconcepts = db['chi_pconcepts']
+        self.pobsfact = db['chi_pobsfact']
         self.pcounts = db['chi_pcounts']
         self.chipats = db['chi_pats']
         self.chi_name = None
@@ -141,6 +142,7 @@ class Chi2:
         log.debug('    chi service={0}'.format(db['chi_service_name']))
         log.debug('       chi user={0}'.format(db['chi_user']))
         log.debug('  chi pconcepts={0}'.format(db['chi_pconcepts']))
+        log.debug('  chi pconcepts={0}'.format(db['chi_pobsfact']))
         log.debug('    chi pcounts={0}'.format(db['chi_pcounts']))
         log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
@@ -332,6 +334,7 @@ class Chi2:
         schema = self.schema
         metaschema = self.metaschema
         pconcepts = self.pconcepts
+        pobsfact = self.pobsfact
         pcounts = self.pcounts
         chischemes = self.chischemes
         host, port, service, user, pw, temp_table = self.getChiOpt()
@@ -363,6 +366,17 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pconcepts))
             except:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
+                try:
+		    log.debug('Checking if chi_obsfact table exists...')
+		    cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pobsfact))
+		except:
+		    log.info('chi_obsfact table ({0}) does not exist, creating it...'.format(pobsfact))
+		    sql = '''
+		    create table {0} as 
+		    select distinct patient_num,obs.concept_cd,valueflag_cd,concept_path 
+		    from {1}.observation_fact obs join {1}.concept_dimension cd 
+		    on obs.concept_cd = cd.concept_cd
+		    '''.format(pobsfact,schema)
                 sql = '''
                 create table {0} as
                 -- your basic list of distinct patients and raw concept codes from the datamart (1)
