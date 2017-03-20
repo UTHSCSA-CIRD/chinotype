@@ -354,8 +354,7 @@ class Chi2:
                 '''.format(self.chipats, schema)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                create index {0}_idx
-                on {0} (pn)
+                alter table {0} add constraint {0}_pk primary key (pn)
                 '''.format(self.chipats)
                 cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
@@ -386,11 +385,11 @@ class Chi2:
                 '''.format(pconcepts, schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                create index {0}_pn_idx on {0} (pn)
+                alter table {0} add constraint {0}_pk primary key (ccd,pn)
                 '''.format(pconcepts)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                create index {0}_ccd_idx on {0} (ccd)
+                create unique index {0}_pncd_idx on {0} (pn,ccd)
                 '''.format(pconcepts)
                 cols, rows = do_log_sql(db, sql)
             # create pcounts table if needed
@@ -432,21 +431,16 @@ class Chi2:
                 '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
 
-                sql = '''
-                create index {0}_idx
-                on {0} (ccd)
+                sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
                 # prefix is for filtering the output, so needs an index
-                sql = '''
-                create index {0}_pfx_idx
-                on {0} (prefix)
+                sql = '''create bitmap index {0}_ccd_idx on {0} (ccd)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
                 # total is used for filtering by threshold, so needs an index
                 sql = '''
-                create index {0}_tl_idx
-                on {0} (total)
+                create index {0}_tl_idx on {0} (total)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
 	    try:
