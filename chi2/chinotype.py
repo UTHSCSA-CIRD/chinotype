@@ -354,7 +354,7 @@ class Chi2:
                 '''.format(self.chipats, schema)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                create unique index pconcepts_ccdpn_idx on pconcepts (pn)
+                alter table {0} add constraint {0}_pk on {0} (pn)
                 '''.format(self.chipats)
                 cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
@@ -383,7 +383,7 @@ class Chi2:
                 '''.format(pconcepts, schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                alter table {0} add constraint {0} primary key (ccd,pn)
+                alter table {0} add constraint {0}_pk primary key (ccd,pn)
                 '''.format(pconcepts)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
@@ -430,8 +430,6 @@ class Chi2:
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
-                create index {0}_idx
-                on {0} (ccd)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
                 # prefix is for filtering the output, so needs an index
