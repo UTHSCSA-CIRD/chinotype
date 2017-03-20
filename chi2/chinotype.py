@@ -354,7 +354,7 @@ class Chi2:
                 '''.format(self.chipats, schema)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                alter table {0} add constraint {0}_pk on {0} (pn)
+                alter table {0} add constraint {0}_pk primary key (pn)
                 '''.format(self.chipats)
                 cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
