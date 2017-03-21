@@ -99,6 +99,7 @@ class Chi2:
         self.crc_service =  db['crc_service_name']
         self.crc_pw = db['crc_pw']
         self.branchnodes = db['chi_branchnodes']
+        self.vfnodes = db['chi_vfnodes']
         self.allbranchnodes = db['chi_allbranchnodes']
         self.termtable = db['chi_termtable']
         self.schema = db['schema']
@@ -142,12 +143,13 @@ class Chi2:
         log.debug('    chi service={0}'.format(db['chi_service_name']))
         log.debug('       chi user={0}'.format(db['chi_user']))
         log.debug('  chi pconcepts={0}'.format(db['chi_pconcepts']))
-        log.debug('  chi pconcepts={0}'.format(db['chi_pobsfact']))
+        log.debug('  chi pobsfact={0}'.format(db['chi_pobsfact']))
         log.debug('    chi pcounts={0}'.format(db['chi_pcounts']))
         log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
         log.debug('data metaschema={0}'.format(db['metaschema']))
         log.debug('   branch nodes={0}'.format(db['chi_branchnodes']))
+        log.debug('valueflag nodes={0}'.format(db['chi_vfnodes']))
         log.debug('all branch nodes={0}'.format(db['chi_allbranchnodes']))
         log.debug('     term table={0}'.format(db['chi_termtable']))
 
@@ -402,9 +404,9 @@ class Chi2:
                 on concept_path like c_dimcode||'%' 
                 join {2} chipat on chipat.pn = obs.patient_num
                 -- selection criteria for specific types of branch nodes
-                where ( {5} ) and 
+                where ( {5} or {6} ) and 
                 -- selection criteria affecting all branch nodes
-                {6}
+                {7}
                 union
                 -- same as above, but facts that are above or below their reference ranges
                 -- i.e. labs
@@ -412,9 +414,9 @@ class Chi2:
                 from {3}.{4}  
                 join {1} obs
                 on concept_path like c_dimcode||'%' 
-                where ( {5} ) and
-                {6} and valueflag_cd in ('H','L')
-                '''.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
+                where ( {6} ) and
+                {7} and valueflag_cd in ('H','L')
+                '''.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
                 alter table {0} add constraint {0}_pk primary key (ccd,pn)
@@ -457,8 +459,8 @@ class Chi2:
                     select concept_cd, min(name) name
                     from (
 		      select c_basecode concept_cd,c_name name from {3}.{4}
-		      where ({5}) and {6}
-		      union all
+		      where ({5} or {6}) and {7}
+		      union
 		      select concept_cd,name_char name from {2}.concept_dimension
 		      )
                     group by concept_cd
@@ -467,7 +469,7 @@ class Chi2:
                 select 'TOTAL' prefix, 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
-                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
+                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)

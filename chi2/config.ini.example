@@ -29,7 +29,12 @@ chi_pats=chi_concept_pats
 ; are drug categories (yours is likely different). In UTHSCSA's i2b2, 
 ; procedure branch nodes have paths that end in '\A________\' whereas leaf 
 ; nodes lack the leading 'A'. Your site is likely different.
-chi_branchnodes=c_basecode like 'ICD9:%' or c_basecode like 'ICD10:%' or c_name like '[_____]%' or c_fullname like '\i2b2\Procedures\PRC\Meta%\A________\ or c_basecode like 'LOINC:%'
+chi_branchnodes=c_basecode like 'ICD9:___' or c_basecode like 'ICD9:___._' or c_name like '[_____]%' or c_fullname like '\i2b2\Procedures\PRC\Meta%\A________\'
+
+; SQL snippet for branch nodes that contain leaf nodes capable of having 
+; value-flags, i.e. being above or below some reference value
+; If you want to not include such nodes, setting chi_vfnodes to 0 might work...
+chi_vfnodes=c_basecode like 'LOINC:_____-_' or c_basecode like 'LOINC:____-_' or c_basecode like 'LOINC:___-_'
 
 ; SQL snippet that applies to further limit all the above results, probably not 
 ; very site-specific. The c_totalnum restriction is to avoid the long tail of 
