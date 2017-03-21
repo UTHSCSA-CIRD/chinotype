@@ -17,9 +17,10 @@ chi_port=1234
 chi_service_name=service_name
 chi_user=bos
 chi_pw=SEKRET_PW_GOES_HERE
-chi_pconcepts=schema.table_name
-chi_pcounts=schema.table_name
-chi_pats=schema.table_name
+chi_pconcepts=chi_concepts
+chi_pobsfact=chi_obsfact
+chi_pcounts=chi_concept_counts
+chi_pats=chi_concept_pats
 
 ; SQL snippet that says which patterns in the ontology table correspond to 
 ; branch nodes (folder nodes) of interest

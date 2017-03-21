@@ -377,6 +377,11 @@ class Chi2:
 		    from {1}.observation_fact obs join {1}.concept_dimension cd 
 		    on obs.concept_cd = cd.concept_cd
 		    '''.format(pobsfact,schema)
+		    cols, rows = do_log_sql(db, sql)
+		    sql = '''create bitmap index {0}_cc_idx on {0} (concept_cd)'''.format(pobsfact)
+		    cols, rows = do_log_sql(db, sql)
+		    sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
+		    cols, rows = do_log_sql(db, sql)
                 sql = '''
                 create table {0} as
                 -- your basic list of distinct patients and raw concept codes from the datamart (1)
