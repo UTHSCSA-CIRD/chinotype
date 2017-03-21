@@ -380,28 +380,41 @@ class Chi2:
 		    cols, rows = do_log_sql(db, sql)
 		    sql = '''create bitmap index {0}_cc_idx on {0} (concept_cd)'''.format(pobsfact)
 		    cols, rows = do_log_sql(db, sql)
-		    sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
+		    #sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
+		    #cols, rows = do_log_sql(db, sql)
+		    # the below may be better than above
+		    sql = '''create index {0}_vfcppn on {0} (valueflag_cd, concept_path, patient_num)'''.format(pobsfact)
 		    cols, rows = do_log_sql(db, sql)
                 sql = '''
                 create table {0} as
                 -- your basic list of distinct patients and raw concept codes from the datamart (1)
-                select distinct obs.patient_num pn, concept_cd ccd
+                select patient_num pn, concept_cd ccd
+                /* removed, using chi_obsfact
                 from {1}.observation_fact obs
+                */
+                from {1} obs -- 1 = pobsfact
                 join {2} chipat on chipat.pn = obs.patient_num
-                union all
+                union
                 -- distinct patients and certain branch nodes, as gathered from the ontology (3).(4)
-                select distinct obs.patient_num pn, c_basecode ccd 
-                from {3}.{4} 
-                left join {1}.concept_dimension cd 
+                select obs.patient_num pn, c_basecode ccd 
+                from {3}.{4}  
+                join {1} obs
                 on concept_path like c_dimcode||'%' 
-                left join {1}.observation_fact obs 
-                on cd.concept_cd = obs.concept_cd 
                 join {2} chipat on chipat.pn = obs.patient_num
                 -- selection criteria for specific types of branch nodes
                 where ( {5} ) and 
                 -- selection criteria affecting all branch nodes
                 {6}
-                '''.format(pconcepts, schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
+                union
+                -- same as above, but facts that are above or below their reference ranges
+                -- i.e. labs
+                select patient_num pn,valueflag_cd||'_'||c_basecode ccd 
+                from {3}.{4}  
+                join {1} obs
+                on concept_path like c_dimcode||'%' 
+                where ( {5} ) and
+                {6} and valueflag_cd in ('H','L')
+                '''.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
                 alter table {0} add constraint {0}_pk primary key (ccd,pn)
