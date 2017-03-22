@@ -368,41 +368,42 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pconcepts))
             except:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
-                try:
-		    log.debug('Checking if chi_obsfact table exists...')
-		    cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pobsfact))
-		except:
-		    log.info('chi_obsfact table ({0}) does not exist, creating it...'.format(pobsfact))
-		    sql = '''
-		    create table {0} as 
-		    select distinct patient_num,obs.concept_cd,valueflag_cd,concept_path 
-		    from {1}.observation_fact obs join {1}.concept_dimension cd 
-		    on obs.concept_cd = cd.concept_cd
-		    '''.format(pobsfact,schema)
-		    cols, rows = do_log_sql(db, sql)
-		    sql = '''create bitmap index {0}_cc_idx on {0} (concept_cd)'''.format(pobsfact)
-		    cols, rows = do_log_sql(db, sql)
-		    #sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
+                #try:
+		    #log.debug('Checking if chi_obsfact table exists...')
+		    #cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pobsfact))
+		#except:
+		    #log.info('chi_obsfact table ({0}) does not exist, creating it...'.format(pobsfact))
+		    #sql = '''
+		    #create table {0} as 
+		    #select distinct patient_num,obs.concept_cd,valueflag_cd,concept_path 
+		    #from {1}.observation_fact obs join {1}.concept_dimension cd 
+		    #on obs.concept_cd = cd.concept_cd
+		    #'''.format(pobsfact,schema)
 		    #cols, rows = do_log_sql(db, sql)
-		    # the below may be better than above
-		    sql = '''create index {0}_vfcppn on {0} (valueflag_cd, concept_path, patient_num)'''.format(pobsfact)
-		    cols, rows = do_log_sql(db, sql)
+		    #sql = '''create bitmap index {0}_cc_idx on {0} (concept_cd)'''.format(pobsfact)
+		    #cols, rows = do_log_sql(db, sql)
+		    ##sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
+		    ##cols, rows = do_log_sql(db, sql)
+		    ## the below may be better than above
+		    #sql = '''create index {0}_vfcppn on {0} (valueflag_cd, concept_path, patient_num)'''.format(pobsfact)
+		    #cols, rows = do_log_sql(db, sql)
                 sql = '''
                 create table {0} as
                 -- your basic list of distinct patients and raw concept codes from the datamart (1)
                 select patient_num pn, concept_cd ccd
-                /* removed, using chi_obsfact
                 from {1}.observation_fact obs
-                */
-                from {1} obs -- 1 = pobsfact
+                -- from {1} obs -- 1 = pobsfact
                 join {2} chipat on chipat.pn = obs.patient_num
                 union
                 -- distinct patients and certain branch nodes, as gathered from the ontology (3).(4)
                 select obs.patient_num pn, c_basecode ccd 
                 from {3}.{4}  
-                join {1} obs
+                -- join {1} obs
+                join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
                 join {2} chipat on chipat.pn = obs.patient_num
+                join {1}.observation_fact obs 		-- use obs_fact
+                on cd.concept_cd = obs.concept_cd 	-- use obs_fact
                 -- selection criteria for specific types of branch nodes
                 where ( {5} or {6} ) and 
                 -- selection criteria affecting all branch nodes
@@ -412,11 +413,16 @@ class Chi2:
                 -- i.e. labs
                 select patient_num pn,valueflag_cd||'_'||c_basecode ccd 
                 from {3}.{4}  
-                join {1} obs
+                -- join {1} obs
+                join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
+                join {2} chipat on chipat.pn = obs.patient_num
+                join {1}.observation_fact obs 		-- use obs_fact
+                on cd.concept_cd = obs.concept_cd 	-- use obs_fact
                 where ( {6} ) and
                 {7} and valueflag_cd in ('H','L')
-                '''.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
+                '''.format(pconcepts, pobsfact, self.schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
+                #.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
                 alter table {0} add constraint {0}_pk primary key (ccd,pn)
