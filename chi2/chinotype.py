@@ -440,17 +440,19 @@ class Chi2:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
                 sql = '''
                 create table {0} as
-                select replace(replace(prefix,'H_',''),'L_','') prefix, 
-                ccd, case 
-		  when ccd like 'H\_%' escape '\' then '[ABOVE REFERENCE] '||name
-		  when ccd like 'L\_%' escape '\' then '[BELOW REFERENCE] '||name
+                select prefix, ccd
+                , case 
+		  when ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
+		  when ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
 		  else name
-		end name, total, frc_total 
+		end name
+		, total, frc_total 
                 from (
-                    select ccd
+                    select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
                     , case 
                         when ccd like 'NAACCR|%' then 'NAACCR'
-                        when instr(ccd, ':') > 0 then substr(ccd, 1, instr(ccd, ':')-1)
+                        when instr(ccd, ':') > 0 then 
+			  replace(replace(substr(ccd, 1, instr(ccd, ':')-1),'H_',''),'L_','')
                         else ccd
                     end prefix
                     , count(distinct pn) total
@@ -467,7 +469,7 @@ class Chi2:
 		      select concept_cd,name_char name from {2}.concept_dimension
 		      )
                     group by concept_cd
-                ) cd on cd.concept_cd = chicon.ccd
+                ) cd on cd.concept_cd = chicon.joinccd
 		-- are we eliminating some rare but important fact by setting a hard lower limit of 10 facts?
 		-- hopefully not
 		where total > 10
