@@ -451,9 +451,6 @@ class Chi2:
                     , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
                     from {1} 
                     group by ccd
-		    -- are we eliminating some rare but important fact by setting a hard lower limit of 10 facts?
-		    -- hopefully not
-                    where total > 10
                 ) chicon
                 left join (
                     select concept_cd, min(name) name
@@ -465,6 +462,9 @@ class Chi2:
 		      )
                     group by concept_cd
                 ) cd on cd.concept_cd = chicon.ccd
+		-- are we eliminating some rare but important fact by setting a hard lower limit of 10 facts?
+		-- hopefully not
+		where total > 10
                 union all
                 select 'TOTAL' prefix, 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
