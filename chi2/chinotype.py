@@ -401,9 +401,9 @@ class Chi2:
                 -- join {1} obs
                 join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
-                join {2} chipat on chipat.pn = obs.patient_num
                 join {1}.observation_fact obs 		-- use obs_fact
                 on cd.concept_cd = obs.concept_cd 	-- use obs_fact
+                join {2} chipat on chipat.pn = obs.patient_num
                 -- selection criteria for specific types of branch nodes
                 where ( {5} or {6} ) and 
                 -- selection criteria affecting all branch nodes
@@ -416,9 +416,9 @@ class Chi2:
                 -- join {1} obs
                 join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
-                join {2} chipat on chipat.pn = obs.patient_num
                 join {1}.observation_fact obs 		-- use obs_fact
                 on cd.concept_cd = obs.concept_cd 	-- use obs_fact
+                join {2} chipat on chipat.pn = obs.patient_num
                 where ( {6} ) and
                 {7} and valueflag_cd in ('H','L')
                 '''.format(pconcepts, self.schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
