@@ -421,7 +421,7 @@ class Chi2:
                 on cd.concept_cd = obs.concept_cd 	-- use obs_fact
                 where ( {6} ) and
                 {7} and valueflag_cd in ('H','L')
-                '''.format(pconcepts, pobsfact, self.schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
+                '''.format(pconcepts, self.schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 #.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
