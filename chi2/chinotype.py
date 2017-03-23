@@ -99,6 +99,7 @@ class Chi2:
         self.crc_service =  db['crc_service_name']
         self.crc_pw = db['crc_pw']
         self.branchnodes = db['chi_branchnodes']
+        self.vfnodes = db['chi_vfnodes']
         self.allbranchnodes = db['chi_allbranchnodes']
         self.termtable = db['chi_termtable']
         self.schema = db['schema']
@@ -117,6 +118,7 @@ class Chi2:
         self.chi_service = db['chi_service_name']
         self.chi_pw = db['chi_pw']
         self.pconcepts = db['chi_pconcepts']
+        self.pobsfact = db['chi_pobsfact']
         self.pcounts = db['chi_pcounts']
         self.chipats = db['chi_pats']
         self.chi_name = None
@@ -141,11 +143,13 @@ class Chi2:
         log.debug('    chi service={0}'.format(db['chi_service_name']))
         log.debug('       chi user={0}'.format(db['chi_user']))
         log.debug('  chi pconcepts={0}'.format(db['chi_pconcepts']))
+        log.debug('  chi pobsfact={0}'.format(db['chi_pobsfact']))
         log.debug('    chi pcounts={0}'.format(db['chi_pcounts']))
         log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
         log.debug('data metaschema={0}'.format(db['metaschema']))
         log.debug('   branch nodes={0}'.format(db['chi_branchnodes']))
+        log.debug('valueflag nodes={0}'.format(db['chi_vfnodes']))
         log.debug('all branch nodes={0}'.format(db['chi_allbranchnodes']))
         log.debug('     term table={0}'.format(db['chi_termtable']))
 
@@ -332,6 +336,7 @@ class Chi2:
         schema = self.schema
         metaschema = self.metaschema
         pconcepts = self.pconcepts
+        pobsfact = self.pobsfact
         pcounts = self.pcounts
         chischemes = self.chischemes
         host, port, service, user, pw, temp_table = self.getChiOpt()
@@ -363,24 +368,61 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pconcepts))
             except:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
+                #try:
+		    #log.debug('Checking if chi_obsfact table exists...')
+		    #cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pobsfact))
+		#except:
+		    #log.info('chi_obsfact table ({0}) does not exist, creating it...'.format(pobsfact))
+		    #sql = '''
+		    #create table {0} as 
+		    #select distinct patient_num,obs.concept_cd,valueflag_cd,concept_path 
+		    #from {1}.observation_fact obs join {1}.concept_dimension cd 
+		    #on obs.concept_cd = cd.concept_cd
+		    #'''.format(pobsfact,schema)
+		    #cols, rows = do_log_sql(db, sql)
+		    #sql = '''create bitmap index {0}_cc_idx on {0} (concept_cd)'''.format(pobsfact)
+		    #cols, rows = do_log_sql(db, sql)
+		    ##sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
+		    ##cols, rows = do_log_sql(db, sql)
+		    ## the below may be better than above
+		    #sql = '''create index {0}_vfcppn on {0} (valueflag_cd, concept_path, patient_num)'''.format(pobsfact)
+		    #cols, rows = do_log_sql(db, sql)
                 sql = '''
                 create table {0} as
-                select distinct obs.patient_num pn, concept_cd ccd
+                -- your basic list of distinct patients and raw concept codes from the datamart (1)
+                select patient_num pn, concept_cd ccd
                 from {1}.observation_fact obs
+                -- from {1} obs -- 1 = pobsfact
                 join {2} chipat on chipat.pn = obs.patient_num
-                union all
-                select distinct obs.patient_num pn, c_basecode ccd 
-                from {3}.{4} 
-                left join {1}.concept_dimension cd 
+                union
+                -- distinct patients and certain branch nodes, as gathered from the ontology (3).(4)
+                select obs.patient_num pn, c_basecode ccd 
+                from {3}.{4}  
+                -- join {1} obs
+                join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
-                left join {1}.observation_fact obs 
-                on cd.concept_cd = obs.concept_cd 
+                join {1}.observation_fact obs 		-- use obs_fact
+                on cd.concept_cd = obs.concept_cd 	-- use obs_fact
                 join {2} chipat on chipat.pn = obs.patient_num
                 -- selection criteria for specific types of branch nodes
-                where ( {5} ) and 
+                where ( {5} or {6} ) and 
                 -- selection criteria affecting all branch nodes
-                {6}
-                '''.format(pconcepts, schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
+                {7}
+                union
+                -- same as above, but facts that are above or below their reference ranges
+                -- i.e. labs
+                select patient_num pn,valueflag_cd||'_'||c_basecode ccd 
+                from {3}.{4}  
+                -- join {1} obs
+                join {1}.concept_dimension cd  		-- use obs_fact
+                on concept_path like c_dimcode||'%' 
+                join {1}.observation_fact obs 		-- use obs_fact
+                on cd.concept_cd = obs.concept_cd 	-- use obs_fact
+                join {2} chipat on chipat.pn = obs.patient_num
+                where ( {6} ) and
+                {7} and valueflag_cd in ('H','L')
+                '''.format(pconcepts, self.schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
+                #.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
                 alter table {0} add constraint {0}_pk primary key (ccd,pn)
@@ -398,12 +440,19 @@ class Chi2:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
                 sql = '''
                 create table {0} as
-                select prefix, ccd, name, total, frc_total 
+                select prefix, ccd
+                , case 
+		  when ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
+		  when ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
+		  else name
+		end name
+		, total, frc_total 
                 from (
-                    select ccd
+                    select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
                     , case 
                         when ccd like 'NAACCR|%' then 'NAACCR'
-                        when instr(ccd, ':') > 0 then substr(ccd, 1, instr(ccd, ':')-1)
+                        when instr(ccd, ':') > 0 then 
+			  replace(replace(substr(ccd, 1, instr(ccd, ':')-1),'H_',''),'L_','')
                         else ccd
                     end prefix
                     , count(distinct pn) total
@@ -415,18 +464,20 @@ class Chi2:
                     select concept_cd, min(name) name
                     from (
 		      select c_basecode concept_cd,c_name name from {3}.{4}
-		      where ({5}) and {6}
-		      union all
+		      where ({5} or {6}) and {7}
+		      union
 		      select concept_cd,name_char name from {2}.concept_dimension
 		      )
                     group by concept_cd
-                ) cd on cd.concept_cd = chicon.ccd
-
+                ) cd on cd.concept_cd = chicon.joinccd
+		-- are we eliminating some rare but important fact by setting a hard lower limit of 10 facts?
+		-- hopefully not
+		where total > 10
                 union all
                 select 'TOTAL' prefix, 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
-                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
+                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
