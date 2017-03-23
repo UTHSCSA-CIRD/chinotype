@@ -429,10 +429,10 @@ class Chi2:
                 alter table {0} add constraint {0}_pk primary key (ccd,pn)
                 '''.format(pconcepts)
                 cols, rows = do_log_sql(db, sql)
-                sql = '''
-                create unique index {0}_pncd_idx on {0} (pn,ccd)
-                '''.format(pconcepts)
-                cols, rows = do_log_sql(db, sql)
+                #sql = '''
+                #create unique index {0}_pncd_idx on {0} (pn,ccd)
+                #'''.format(pconcepts)
+                #cols, rows = do_log_sql(db, sql)
             # create pcounts table if needed
             try:
                 log.debug('Checking if chi_pcounts table exists...')
