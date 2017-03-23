@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 '''
+Chinotype back-end script, RC v1.1.0
 Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
