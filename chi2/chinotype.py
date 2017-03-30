@@ -815,10 +815,10 @@ class Chi2:
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio --, dir
         from data where ccd = 'TOTAL'
         union all
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio --, dir
         from ranked_data {2}
         '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
