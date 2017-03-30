@@ -776,7 +776,11 @@ class Chi2:
         )
         , data as (
             select prefix, ccd
-            , name, {3}, frc_{3}, {0}, frc_{0}
+            , name
+            , {3}
+            , frc_{3} 
+            , {0}
+            , frc_{0}
             -- , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
             -- oops, that's not really chisq df=1, but the below is...
             , case 
@@ -793,7 +797,7 @@ class Chi2:
 	      else
 	      (1-frc_{3})*frc_{0}/((1-frc_{0})*frc_{3}) 
 	      end odds_ratio
-	    --, case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
+	    , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
             from {1}
             , cohort
             where frc_{3} > 0   -- reference patient set frequency
@@ -811,10 +815,10 @@ class Chi2:
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio --, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from data where ccd = 'TOTAL'
         union all
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio --, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from ranked_data {2}
         '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
