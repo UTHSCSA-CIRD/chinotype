@@ -789,12 +789,14 @@ class Chi2:
 	      else
 	      power({0} - (cohort.pat_count * frc_{3}), 2)*(1/(cohort.pat_count * frc_{3}) + 
 	      1/((cohort.pat_count-{0}) * frc_{3}) + 1/(cohort.pat_count * (1-frc_{3})) + 
-	      1/((cohort.pat_count-{0}) * (1-frc_{3}))) end chisq
+	      1/((cohort.pat_count-{0}) * (1-frc_{3}))) 
+	      end chisq
 	    , case 
 	      when frc_{0}=frc_{3} then 1 
 	      when frc_{0} in (0,1) or frc_{3} in (0,1) then 0
 	      else
-	      (1-frc_{3})*frc_{0}/((1-frc_{0})*frc_{3}) odds_ratio
+	      (1-frc_{3})*frc_{0}/((1-frc_{0})*frc_{3}) 
+	      end odds_ratio
 	    , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
             from {1}
             , cohort
@@ -805,7 +807,7 @@ class Chi2:
         , ranked_data as (
             select data.*
             , row_number() over (order by chisq*dir desc) as rank
-            --, row_number() over (order by chisq*dir asc) as revrank  -- this was being run for no reason
+            , row_number() over (order by chisq*dir asc) as revrank  -- this is not a useless line
             from data   
             join patterns on data.prefix = patterns.c_name 
             where ccd != 'TOTAL'
