@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 '''
+Chinotype back-end script, RC v1.1.0
 Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
@@ -428,10 +429,10 @@ class Chi2:
                 alter table {0} add constraint {0}_pk primary key (ccd,pn)
                 '''.format(pconcepts)
                 cols, rows = do_log_sql(db, sql)
-                sql = '''
-                create unique index {0}_pncd_idx on {0} (pn,ccd)
-                '''.format(pconcepts)
-                cols, rows = do_log_sql(db, sql)
+                #sql = '''
+                #create unique index {0}_pncd_idx on {0} (pn,ccd)
+                #'''.format(pconcepts)
+                #cols, rows = do_log_sql(db, sql)
             # create pcounts table if needed
             try:
                 log.debug('Checking if chi_pcounts table exists...')
@@ -780,20 +781,23 @@ class Chi2:
             , frc_{3} 
             , {0}
             , frc_{0}
-            , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
-            /* -- TODO: show rows where concepts in ref but not test patient set? For now
-               -- no, b/c test pat sets are limited to strict subsets of reference pat set.
-               -- but we may want to do something like this is semi-overlapping sets are allowed.
-            , case
-                when frc_{3} = frc_{0} then
-                    0
-                when frc_{3} > 0 then
-                    power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3})
-                else
-                    null
-                end chisq
-            */
-            , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
+            -- , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
+            -- oops, that's not really chisq df=1, but the below is...
+            , case 
+	      when frc_{3} = frc_{0} then 0
+	      when frc_{3} = 1 or frc_{0} = 1 then null
+	      else
+	      power({0} - (cohort.pat_count * frc_{3}), 2)*(1/(cohort.pat_count * frc_{3}) + 
+	      1/((cohort.pat_count-{0}) * frc_{3}) + 1/(cohort.pat_count * (1-frc_{3})) + 
+	      1/((cohort.pat_count-{0}) * (1-frc_{3}))) 
+	      end chisq
+	    , case 
+	      when frc_{0}=frc_{3} then 1 
+	      when frc_{0} in (0,1) or frc_{3} in (0,1) then 0
+	      else
+	      (1-frc_{3})*frc_{0}/((1-frc_{0})*frc_{3}) 
+	      end odds_ratio
+	    , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
             from {1}
             , cohort
             where frc_{3} > 0   -- reference patient set frequency
@@ -802,17 +806,19 @@ class Chi2:
         )
         , ranked_data as (
             select data.*
-            , row_number() over (order by chisq*dir desc) as rank
-            , row_number() over (order by chisq*dir asc) as revrank    
+            --, row_number() over (order by chisq*dir desc) as rank
+            --, row_number() over (order by chisq*dir asc) as revrank  -- this is not a useless line
+            , row_number() over (order by odds_ratio desc) as rank
+            , row_number() over (order by odds_ratio asc) as revrank  -- this is not a useless line
             from data   
             join patterns on data.prefix = patterns.c_name 
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from data where ccd = 'TOTAL'
         union all
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from ranked_data {2}
         '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
