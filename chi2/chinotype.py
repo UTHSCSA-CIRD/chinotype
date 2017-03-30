@@ -806,8 +806,10 @@ class Chi2:
         )
         , ranked_data as (
             select data.*
-            , row_number() over (order by chisq*dir desc) as rank
-            , row_number() over (order by chisq*dir asc) as revrank  -- this is not a useless line
+            --, row_number() over (order by chisq*dir desc) as rank
+            --, row_number() over (order by chisq*dir asc) as revrank  -- this is not a useless line
+            , row_number() over (order by odds_ratio desc) as rank
+            , row_number() over (order by odds_ratio asc) as revrank  -- this is not a useless line
             from data   
             join patterns on data.prefix = patterns.c_name 
             where ccd != 'TOTAL'
