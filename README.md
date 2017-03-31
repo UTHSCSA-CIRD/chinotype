@@ -29,8 +29,12 @@ I don't know why yet, but you need to do these before you do `pip install -r req
 * `pip install cx_Oracle`
 #### Create Directories (assuming that your cgi scripts run with apache's permissions)
 `mkdir /var/log/chi2; chgrp apache /var/log/chi2; chmod g+w /var/log/chi2`
+
 `cp -r chi2 /usr/local/chi2; chgrp -r apache /usr/local/chi2; chmod -R g+w /usr/local/chi2`
+
 `cp cgi-bin/chi2.cgi /var/www/cgi-bin`
+
 `mkdir /var/www/html/webclient/js-i2b2/cells/plugins/uthscsa/`
+
 `cp -r webclient/js-i2b2/cells/plugins/uthscsa/chi2 /var/www/html/webclient/js-i2b2/cells/plugins/uthscsa`
 
