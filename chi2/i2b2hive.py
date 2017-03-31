@@ -19,7 +19,8 @@ import xml.etree.ElementTree as ET
 # but instantiating it is a capability limited to trusted code.
 from mechanize import Browser
 
-from ocap import lafile
+#from ocap import lafile
+import lafile
 
 log = logging.getLogger(__name__)
 

@@ -16,7 +16,8 @@ from functools import partial as pf_
 
 import argh
 from paste.request import parse_formvars
-from ocap import lafile
+#from ocap import lafile
+import lafile
 from chinotype import Chi2
 
 import i2b2hive
