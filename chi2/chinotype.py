@@ -441,7 +441,7 @@ class Chi2:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
                 sql = '''select count(*) from {0}'''.format(self.chipats)
                 cols, rows = do_log_sql(db,sql)
-                pat_totalcount = rows[0][0]
+                pat_totalcount = rows[0][0] # now this takes less than 3 minutes
                 sql = '''
                 -- pcounts = {0}
                 -- pconcepts = {1}
@@ -453,14 +453,29 @@ class Chi2:
                 -- self.allbranchnodes = {7}
                 -- pat_totalcount = {8}
                 create table {0} as
-                select prefix, ccd
+                with ttls as (
+		  select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
+		  ,count(distinct pn) total from {1} 
+		  group by ccd
+		), ttls2 as (
+		  select ccd, total from ttls where ccd like 'LOINC:%'
+		)
+		select 
+		case 
+		  when ttls.ccd like 'NAACCR|%' then 'NAACCR'
+		  when instr(joinccd, ':') > 0 then 
+		      substr(joinccd, 1, instr(joinccd, ':')-1)
+		  else joinccd
+		  end prefix
+		, ttls.ccd
+                --select prefix, ccd
                 , case 
-		  when ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
-		  when ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
+		  when ttls.ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
+		  when ttls.ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
 		  else name
 		end name
-		, total, frc_total 
-                from (
+		, ttls.total, ttls.total/coalesce(t2.total,t3.total,383752) frc_total 
+                /*from (
                     select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
                     , case 
                         when ccd like 'NAACCR|%' then 'NAACCR'
@@ -473,7 +488,9 @@ class Chi2:
                     , count(distinct pn) / {8} frc_total
                     from {1} 
                     group by ccd
-                ) chicon
+                ) chicon */
+                left join ttls2 t2 on ttls.ccd = 'H_'||t2.ccd
+                left join ttls2 t3 on ttls.ccd = 'L_'||t3.ccd
                 left join (
                     select concept_cd, min(name) name
                     from (
@@ -488,8 +505,8 @@ class Chi2:
 		-- hopefully not
 		where total > 10
                 union all
-                select 'TOTAL' prefix, 'TOTAL' ccd, '' name
-                , (select count(distinct pn) from {1}) total
+                select 'TOTAL' prefix, 'TOTAL' ccd, 'All Patients in Population' name
+                , {8} total
                 , 1 frc_total from dual
                 '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes, pat_totalcount)
                 cols, rows = do_log_sql(db, sql)
