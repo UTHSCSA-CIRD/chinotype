@@ -592,6 +592,23 @@ class Chi2:
 
                 sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
                 cols, rows = do_log_sql(db, sql)
+                
+                sql = '''
+                -- pconcepts = {0}
+                -- chi_name = {1}
+                create or replace view new_cohort as
+		with c1 as (
+		  -- select cohort of interest from test_pconcepts table
+		  select ccd      -- concept code
+		  , count(distinct mc.pn) cnt  -- count
+		  from {0} pc join {1} mc on mc.pn = pc.pn
+		  group by ccd
+		), c2 as (select ccd,cnt denom from c1 where ccd like 'LOINC:%')
+		select c1.ccd,min(cnt),min(c2h.denom) hdenom,min(c2l.denom) ldenom from
+		c1 left join c2 c2h on c1.ccd = 'H_'||c2h.ccd
+		left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
+		gropu by c1.ccd
+		'''.format(pconcepts,chi_name)
 
                 sql = '''
                 -- pconcepts = {0}
@@ -599,7 +616,7 @@ class Chi2:
                 -- pcounts = {2}
                 -- len(pats) = {3}
                 update (
-                    with cnts as (
+                    /*with cnts as (
                         -- select cohort of interest from {0} table
                         select ccd      -- concept code
                         -- try sometime pc.pn and see if difference
@@ -609,16 +626,14 @@ class Chi2:
                         from {0} pc 
                         join {1} mc on mc.pn = pc.pn 
                         group by ccd
-                    ),cnts2 as (select * from cnts where ccd like 'LOINC:%')
+                    ),cnts2 as (select * from cnts where ccd like 'LOINC:%')*/
                     select 
                         pc.{1} emptycnt -- empty target column for counts
-                        , coalesce(c1.cnt,0) newcnt -- source column for counts
+                        , coalesce(cnt,0) newcnt -- source column for counts
                         , pc.frc_{1} emptyfrc -- empty target column for fractions
-                        , coalesce(c1.cnt/coalesce(c2.cnt,c3.cnt,{3}),0) newfrc -- source column for fractions
+                        , coalesce(cnt/coalesce(hdenom,ldenom,{3}),0) newfrc -- source column for fractions
                     from {2} pc 
-                    left join cnts c1 on pc.ccd = c1.ccd
-                    left join cnts2 c2 on pc.ccd = 'H_'||c2.ccd 
-                    left join cnts2 c3 on pc.ccd = 'L_'||c3.ccd 
+                    left join new_cohort on pc.ccd = new_cohort.ccd
                 ) up
                 set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
                 '''.format(pconcepts, chi_name, pcounts, len(pats))
