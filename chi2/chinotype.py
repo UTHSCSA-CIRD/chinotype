@@ -507,8 +507,7 @@ class Chi2:
 		where ttls.total > 10
                 union all
                 select 'TOTAL' prefix, 'TOTAL' ccd, 'All Patients in Population' name
-                , {8} total
-                , 1 frc_total from dual
+                , {8} total, 1 frc_total from dual
                 '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes, pat_totalcount)
                 cols, rows = do_log_sql(db, sql)
 
@@ -605,19 +604,21 @@ class Chi2:
                         select ccd      -- concept code
                         -- try sometime pc.pn and see if difference
                         , count(distinct mc.pn) cnt  -- count
-                        , count(distinct mc.pn) / {3} frc
+                        --, count(distinct mc.pn) / {3} frc
                                         -- fraction of all patients
                         from {0} pc 
                         join {1} mc on mc.pn = pc.pn 
                         group by ccd
-                    )
+                    ),cnts2 as (select * from cnts where ccd like 'LOINC:%')
                     select 
                         pc.{1} emptycnt -- empty target column for counts
-                        , nvl(cnts.cnt,0) newcnt -- source column for counts
+                        , coalesce(c1.cnt,0) newcnt -- source column for counts
                         , pc.frc_{1} emptyfrc -- empty target column for fractions
-                        , nvl(cnts.frc,0) newfrc -- source column for fractions
+                        , coalesce(c1.cnt/coalesce(c2.cnt,c3.cnt,{3}),0) newfrc -- source column for fractions
                     from {2} pc 
-                    left join cnts on pc.ccd = cnts.ccd
+                    left join cnts c1 on pc.ccd = c1.ccd
+                    left join cnts2 c2 on pc.ccd = 'H_'||c2.ccd 
+                    left join cnts2 c3 on pc.ccd = 'L_'||c3.ccd 
                 ) up
                 set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
                 '''.format(pconcepts, chi_name, pcounts, len(pats))
