@@ -607,7 +607,7 @@ class Chi2:
 		select c1.ccd,min(cnt),min(c2h.denom) hdenom,min(c2l.denom) ldenom from
 		c1 left join c2 c2h on c1.ccd = 'H_'||c2h.ccd
 		left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
-		gropu by c1.ccd
+		group by c1.ccd
 		'''.format(pconcepts,chi_name)
 		cols, rows = do_log_sql(db,sql)
 
