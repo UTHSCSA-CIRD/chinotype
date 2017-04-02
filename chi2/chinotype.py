@@ -439,16 +439,44 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pcounts))
             except:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
+                sql = '''select count(*) from {0}'''.format(self.chipats)
+                cols, rows = do_log_sql(db,sql)
+                pat_totalcount = rows[0][0] # now this takes less than 3 minutes
                 sql = '''
+                -- pcounts = {0}
+                -- pconcepts = {1}
+                -- schema = {2}
+                -- self.metaschema = {3} 
+                -- self.termtable = {4}
+                -- self.branchnodes = {5}
+                -- self.vfnodes = {6}
+                -- self.allbranchnodes = {7}
+                -- pat_totalcount = {8}
                 create table {0} as
-                select prefix, ccd
+                with ttls as (
+		  select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
+		  ,count(distinct pn) total from {1} 
+		  group by ccd
+		), ttls2 as (
+		  select ccd, total from ttls where ccd like 'LOINC:%'
+		)
+		select 
+		case 
+		  when ttls.ccd like 'NAACCR|%' then 'NAACCR'
+		  when instr(joinccd, ':') > 0 then 
+		      substr(joinccd, 1, instr(joinccd, ':')-1)
+		  else joinccd
+		  end prefix
+		, ttls.ccd
+                --select prefix, ccd
                 , case 
-		  when ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
-		  when ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
+		  when ttls.ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
+		  when ttls.ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
 		  else name
 		end name
-		, total, frc_total 
-                from (
+		, ttls.total, ttls.total/coalesce(t2.total,t3.total,383752) frc_total 
+		from ttls
+                /*from (
                     select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
                     , case 
                         when ccd like 'NAACCR|%' then 'NAACCR'
@@ -457,10 +485,13 @@ class Chi2:
                         else ccd
                     end prefix
                     , count(distinct pn) total
-                    , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+                    --, count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+                    , count(distinct pn) / {8} frc_total
                     from {1} 
                     group by ccd
-                ) chicon
+                ) chicon */
+                left join ttls2 t2 on ttls.ccd = 'H_'||t2.ccd
+                left join ttls2 t3 on ttls.ccd = 'L_'||t3.ccd
                 left join (
                     select concept_cd, min(name) name
                     from (
@@ -470,15 +501,14 @@ class Chi2:
 		      select concept_cd,name_char name from {2}.concept_dimension
 		      )
                     group by concept_cd
-                ) cd on cd.concept_cd = chicon.joinccd
+                ) cd on cd.concept_cd = ttls.joinccd
 		-- are we eliminating some rare but important fact by setting a hard lower limit of 10 facts?
 		-- hopefully not
-		where total > 10
+		where ttls.total > 10
                 union all
-                select 'TOTAL' prefix, 'TOTAL' ccd, '' name
-                , (select count(distinct pn) from {1}) total
-                , 1 frc_total from dual
-                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
+                select 'TOTAL' prefix, 'TOTAL' ccd, 'All Patients in Population' name
+                , {8} total, 1 frc_total from dual
+                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes, pat_totalcount)
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
@@ -542,6 +572,7 @@ class Chi2:
 
             if runChi:
                 # make a temp table of patient set for query chi_name=m###_r###_i###
+                # why are we looking at PATIENT_DIMENSION? Don't we already have chi_pats?
                 log.info('Creating chi columns for PSID {0}'.format(self.psid))
                 log.debug('Creating temp table for patient set...')
                 sql = '''
@@ -561,30 +592,41 @@ class Chi2:
 
                 sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
                 cols, rows = do_log_sql(db, sql)
-
+                log.info('Updating view for correlated update')
                 sql = '''
+                -- pconcepts = {0}
+                -- chi_name = {1}
+                create or replace view new_cohort as
+		with c1 as (
+		  -- select cohort of interest from test_pconcepts table
+		  select ccd      -- concept code
+		  , count(distinct mc.pn) cnt  -- count
+		  from {0} pc join {1} mc on mc.pn = pc.pn
+		  group by ccd
+		), c2 as (select ccd,cnt denom from c1 where ccd like 'LOINC:%')
+		select c1.ccd,min(cnt) cnt,min(c2h.denom) hdenom,min(c2l.denom) ldenom from
+		c1 left join c2 c2h on c1.ccd = 'H_'||c2h.ccd
+		left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
+		group by c1.ccd
+		'''.format(pconcepts,chi_name)
+		cols, rows = do_log_sql(db,sql)
+		# This view-based approach seems to run in under 2min for a 19k patient-set
+		log.info('updating columns of {0}'.format(pcounts))
+                sql = '''
+                -- chi_name = {0}
+                -- pcounts = {1}
+                -- len(pats) = {2}
                 update (
-                    with cnts as (
-                        -- select cohort of interest from {0} table
-                        select ccd      -- concept code
-                        -- try sometime pc.pn and see if difference
-                        , count(distinct mc.pn) cnt  -- count
-                        , count(distinct mc.pn) / {3} frc
-                                        -- fraction of all patients
-                        from {0} pc 
-                        join {1} mc on mc.pn = pc.pn 
-                        group by ccd
-                    )
                     select 
-                        pc.{1} emptycnt -- empty target column for counts
-                        , nvl(cnts.cnt,0) newcnt -- source column for counts
-                        , pc.frc_{1} emptyfrc -- empty target column for fractions
-                        , nvl(cnts.frc,0) newfrc -- source column for fractions
-                    from {2} pc 
-                    left join cnts on pc.ccd = cnts.ccd
+                        pc.{0} emptycnt -- empty target column for counts
+                        , coalesce(cnt,0) newcnt -- source column for counts
+                        , pc.frc_{0} emptyfrc -- empty target column for fractions
+                        , coalesce(cnt/coalesce(hdenom,ldenom,{2}),0) newfrc -- source column for fractions
+                    from {1} pc 
+                    left join new_cohort on pc.ccd = new_cohort.ccd
                 ) up
                 set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
-                '''.format(pconcepts, chi_name, pcounts, len(pats))
+                '''.format(chi_name, pcounts, len(pats))
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''
