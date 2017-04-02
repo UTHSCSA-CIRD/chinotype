@@ -475,6 +475,7 @@ class Chi2:
 		  else name
 		end name
 		, ttls.total, ttls.total/coalesce(t2.total,t3.total,383752) frc_total 
+		from ttls
                 /*from (
                     select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
                     , case 
@@ -500,10 +501,10 @@ class Chi2:
 		      select concept_cd,name_char name from {2}.concept_dimension
 		      )
                     group by concept_cd
-                ) cd on cd.concept_cd = chicon.joinccd
+                ) cd on cd.concept_cd = ttls.joinccd
 		-- are we eliminating some rare but important fact by setting a hard lower limit of 10 facts?
 		-- hopefully not
-		where total > 10
+		where ttls.total > 10
                 union all
                 select 'TOTAL' prefix, 'TOTAL' ccd, 'All Patients in Population' name
                 , {8} total
