@@ -439,7 +439,19 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pcounts))
             except:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
+                sql = '''select count(*) from {0}'''.format(self.chipats)
+                cols, rows = do_log_sql(db,sql)
+                pat_totalcount = rows[0][0]
                 sql = '''
+                -- pcounts = {0}
+                -- pconcepts = {1}
+                -- schema = {2}
+                -- self.metaschema = {3} 
+                -- self.termtable = {4}
+                -- self.branchnodes = {5}
+                -- self.vfnodes = {6}
+                -- self.allbranchnodes = {7}
+                -- pat_totalcount = {8}
                 create table {0} as
                 select prefix, ccd
                 , case 
@@ -457,7 +469,8 @@ class Chi2:
                         else ccd
                     end prefix
                     , count(distinct pn) total
-                    , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+                    --, count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+                    , count(distinct pn) / {8} frc_total
                     from {1} 
                     group by ccd
                 ) chicon
@@ -478,7 +491,7 @@ class Chi2:
                 select 'TOTAL' prefix, 'TOTAL' ccd, '' name
                 , (select count(distinct pn) from {1}) total
                 , 1 frc_total from dual
-                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
+                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes, pat_totalcount)
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
@@ -542,6 +555,7 @@ class Chi2:
 
             if runChi:
                 # make a temp table of patient set for query chi_name=m###_r###_i###
+                # why are we looking at PATIENT_DIMENSION? Don't we already have chi_pats?
                 log.info('Creating chi columns for PSID {0}'.format(self.psid))
                 log.debug('Creating temp table for patient set...')
                 sql = '''
@@ -563,6 +577,10 @@ class Chi2:
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''
+                -- pconcepts = {0}
+                -- chi_name = {1}
+                -- pcounts = {2}
+                -- len(pats) = {3}
                 update (
                     with cnts as (
                         -- select cohort of interest from {0} table
