@@ -604,7 +604,7 @@ class Chi2:
 		  from {0} pc join {1} mc on mc.pn = pc.pn
 		  group by ccd
 		), c2 as (select ccd,cnt denom from c1 where ccd like 'LOINC:%')
-		select c1.ccd,min(cnt),min(c2h.denom) hdenom,min(c2l.denom) ldenom from
+		select c1.ccd,min(cnt) cnt,min(c2h.denom) hdenom,min(c2l.denom) ldenom from
 		c1 left join c2 c2h on c1.ccd = 'H_'||c2h.ccd
 		left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
 		group by c1.ccd
