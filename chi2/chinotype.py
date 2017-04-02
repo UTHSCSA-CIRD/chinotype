@@ -592,7 +592,7 @@ class Chi2:
 
                 sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
                 cols, rows = do_log_sql(db, sql)
-                
+                log.info('Updating view for correlated update')
                 sql = '''
                 -- pconcepts = {0}
                 -- chi_name = {1}
@@ -609,6 +609,7 @@ class Chi2:
 		left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
 		gropu by c1.ccd
 		'''.format(pconcepts,chi_name)
+		cols, rows = do_log_sql(db,sql)
 
                 sql = '''
                 -- pconcepts = {0}
