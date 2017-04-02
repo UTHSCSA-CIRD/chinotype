@@ -610,34 +610,23 @@ class Chi2:
 		group by c1.ccd
 		'''.format(pconcepts,chi_name)
 		cols, rows = do_log_sql(db,sql)
-
+		# This view-based approach seems to run in under 2min for a 19k patient-set
+		log.info('updating columns of {0}'.format(pcounts))
                 sql = '''
-                -- pconcepts = {0}
-                -- chi_name = {1}
-                -- pcounts = {2}
-                -- len(pats) = {3}
+                -- chi_name = {0}
+                -- pcounts = {1}
+                -- len(pats) = {2}
                 update (
-                    /*with cnts as (
-                        -- select cohort of interest from {0} table
-                        select ccd      -- concept code
-                        -- try sometime pc.pn and see if difference
-                        , count(distinct mc.pn) cnt  -- count
-                        --, count(distinct mc.pn) / {3} frc
-                                        -- fraction of all patients
-                        from {0} pc 
-                        join {1} mc on mc.pn = pc.pn 
-                        group by ccd
-                    ),cnts2 as (select * from cnts where ccd like 'LOINC:%')*/
                     select 
-                        pc.{1} emptycnt -- empty target column for counts
+                        pc.{0} emptycnt -- empty target column for counts
                         , coalesce(cnt,0) newcnt -- source column for counts
-                        , pc.frc_{1} emptyfrc -- empty target column for fractions
-                        , coalesce(cnt/coalesce(hdenom,ldenom,{3}),0) newfrc -- source column for fractions
-                    from {2} pc 
+                        , pc.frc_{0} emptyfrc -- empty target column for fractions
+                        , coalesce(cnt/coalesce(hdenom,ldenom,{2}),0) newfrc -- source column for fractions
+                    from {1} pc 
                     left join new_cohort on pc.ccd = new_cohort.ccd
                 ) up
                 set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
-                '''.format(pconcepts, chi_name, pcounts, len(pats))
+                '''.format(chi_name, pcounts, len(pats))
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''
