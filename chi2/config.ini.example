@@ -6,6 +6,11 @@
 ;   grant select on i2b2demodata.qt_patient_set_collection to foo;
 ;   grant select on i2b2demodata.observation_fact to foo;
 ;   grant select on i2b2metadata.i2b2 to foo;
+;   grant create session to foo;
+;   grant create table to foo;
+;   gramt unlimited tablespace to foo;
+;   grant create vuew to foo;
+
 ; crc_user, etc. is an account that has read access to the i2b2 schema
 crc_host=localhost
 crc_port=1234
