@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 '''
+Chinotype back-end script, RC v1.1.0
 Create counts and prevalences for ranking patient cohorts
    by relative prevalence of concepts.
 
@@ -99,6 +100,7 @@ class Chi2:
         self.crc_service =  db['crc_service_name']
         self.crc_pw = db['crc_pw']
         self.branchnodes = db['chi_branchnodes']
+        self.vfnodes = db['chi_vfnodes']
         self.allbranchnodes = db['chi_allbranchnodes']
         self.termtable = db['chi_termtable']
         self.schema = db['schema']
@@ -117,6 +119,7 @@ class Chi2:
         self.chi_service = db['chi_service_name']
         self.chi_pw = db['chi_pw']
         self.pconcepts = db['chi_pconcepts']
+        self.pobsfact = db['chi_pobsfact']
         self.pcounts = db['chi_pcounts']
         self.chipats = db['chi_pats']
         self.chi_name = None
@@ -141,11 +144,13 @@ class Chi2:
         log.debug('    chi service={0}'.format(db['chi_service_name']))
         log.debug('       chi user={0}'.format(db['chi_user']))
         log.debug('  chi pconcepts={0}'.format(db['chi_pconcepts']))
+        log.debug('  chi pobsfact={0}'.format(db['chi_pobsfact']))
         log.debug('    chi pcounts={0}'.format(db['chi_pcounts']))
         log.debug('       chi pats={0}'.format(db['chi_pats']))
         log.debug('    data schema={0}'.format(db['schema']))
         log.debug('data metaschema={0}'.format(db['metaschema']))
         log.debug('   branch nodes={0}'.format(db['chi_branchnodes']))
+        log.debug('valueflag nodes={0}'.format(db['chi_vfnodes']))
         log.debug('all branch nodes={0}'.format(db['chi_allbranchnodes']))
         log.debug('     term table={0}'.format(db['chi_termtable']))
 
@@ -332,6 +337,7 @@ class Chi2:
         schema = self.schema
         metaschema = self.metaschema
         pconcepts = self.pconcepts
+        pobsfact = self.pobsfact
         pcounts = self.pcounts
         chischemes = self.chischemes
         host, port, service, user, pw, temp_table = self.getChiOpt()
@@ -363,70 +369,146 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pconcepts))
             except:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
+                #try:
+		    #log.debug('Checking if chi_obsfact table exists...')
+		    #cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pobsfact))
+		#except:
+		    #log.info('chi_obsfact table ({0}) does not exist, creating it...'.format(pobsfact))
+		    #sql = '''
+		    #create table {0} as 
+		    #select distinct patient_num,obs.concept_cd,valueflag_cd,concept_path 
+		    #from {1}.observation_fact obs join {1}.concept_dimension cd 
+		    #on obs.concept_cd = cd.concept_cd
+		    #'''.format(pobsfact,schema)
+		    #cols, rows = do_log_sql(db, sql)
+		    #sql = '''create bitmap index {0}_cc_idx on {0} (concept_cd)'''.format(pobsfact)
+		    #cols, rows = do_log_sql(db, sql)
+		    ##sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
+		    ##cols, rows = do_log_sql(db, sql)
+		    ## the below may be better than above
+		    #sql = '''create index {0}_vfcppn on {0} (valueflag_cd, concept_path, patient_num)'''.format(pobsfact)
+		    #cols, rows = do_log_sql(db, sql)
                 sql = '''
                 create table {0} as
-                select distinct obs.patient_num pn, concept_cd ccd
+                -- your basic list of distinct patients and raw concept codes from the datamart (1)
+                select patient_num pn, concept_cd ccd
                 from {1}.observation_fact obs
+                -- from {1} obs -- 1 = pobsfact
                 join {2} chipat on chipat.pn = obs.patient_num
-                union all
-                select distinct obs.patient_num pn, c_basecode ccd 
-                from {3}.{4} 
-                left join {1}.concept_dimension cd 
+                union
+                -- distinct patients and certain branch nodes, as gathered from the ontology (3).(4)
+                select obs.patient_num pn, c_basecode ccd 
+                from {3}.{4}  
+                -- join {1} obs
+                join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
-                left join {1}.observation_fact obs 
-                on cd.concept_cd = obs.concept_cd 
+                join {1}.observation_fact obs 		-- use obs_fact
+                on cd.concept_cd = obs.concept_cd 	-- use obs_fact
                 join {2} chipat on chipat.pn = obs.patient_num
                 -- selection criteria for specific types of branch nodes
-                where ( {5} ) and 
+                where ( {5} or {6} ) and 
                 -- selection criteria affecting all branch nodes
-                {6}
-                '''.format(pconcepts, schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
+                {7}
+                union
+                -- same as above, but facts that are above or below their reference ranges
+                -- i.e. labs
+                select patient_num pn,valueflag_cd||'_'||c_basecode ccd 
+                from {3}.{4}  
+                -- join {1} obs
+                join {1}.concept_dimension cd  		-- use obs_fact
+                on concept_path like c_dimcode||'%' 
+                join {1}.observation_fact obs 		-- use obs_fact
+                on cd.concept_cd = obs.concept_cd 	-- use obs_fact
+                join {2} chipat on chipat.pn = obs.patient_num
+                where ( {6} ) and
+                {7} and valueflag_cd in ('H','L')
+                '''.format(pconcepts, self.schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
+                #.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
                 alter table {0} add constraint {0}_pk primary key (ccd,pn)
                 '''.format(pconcepts)
                 cols, rows = do_log_sql(db, sql)
-                sql = '''
-                create unique index {0}_pncd_idx on {0} (pn,ccd)
-                '''.format(pconcepts)
-                cols, rows = do_log_sql(db, sql)
+                #sql = '''
+                #create unique index {0}_pncd_idx on {0} (pn,ccd)
+                #'''.format(pconcepts)
+                #cols, rows = do_log_sql(db, sql)
             # create pcounts table if needed
             try:
                 log.debug('Checking if chi_pcounts table exists...')
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pcounts))
             except:
                 log.info('chi_pcounts table ({0}) does not exist, creating it...'.format(pcounts))
+                sql = '''select count(*) from {0}'''.format(self.chipats)
+                cols, rows = do_log_sql(db,sql)
+                pat_totalcount = rows[0][0] # now this takes less than 3 minutes
                 sql = '''
+                -- pcounts = {0}
+                -- pconcepts = {1}
+                -- schema = {2}
+                -- self.metaschema = {3} 
+                -- self.termtable = {4}
+                -- self.branchnodes = {5}
+                -- self.vfnodes = {6}
+                -- self.allbranchnodes = {7}
+                -- pat_totalcount = {8}
                 create table {0} as
-                select prefix, ccd, name, total, frc_total 
-                from (
-                    select ccd
+                with ttls as (
+		  select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
+		  ,count(distinct pn) total from {1} 
+		  group by ccd
+		), ttls2 as (
+		  select ccd, total from ttls where ccd like 'LOINC:%'
+		)
+		select 
+		case 
+		  when ttls.ccd like 'NAACCR|%' then 'NAACCR'
+		  when instr(joinccd, ':') > 0 then 
+		      substr(joinccd, 1, instr(joinccd, ':')-1)
+		  else joinccd
+		  end prefix
+		, ttls.ccd
+                --select prefix, ccd
+                , case 
+		  when ttls.ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
+		  when ttls.ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
+		  else name
+		end name
+		, ttls.total, ttls.total/coalesce(t2.total,t3.total,383752) frc_total 
+		from ttls
+                /*from (
+                    select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
                     , case 
                         when ccd like 'NAACCR|%' then 'NAACCR'
-                        when instr(ccd, ':') > 0 then substr(ccd, 1, instr(ccd, ':')-1)
+                        when instr(ccd, ':') > 0 then 
+			  replace(replace(substr(ccd, 1, instr(ccd, ':')-1),'H_',''),'L_','')
                         else ccd
                     end prefix
                     , count(distinct pn) total
-                    , count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+                    --, count(distinct pn) / (select count(distinct pn) from {1}) frc_total
+                    , count(distinct pn) / {8} frc_total
                     from {1} 
                     group by ccd
-                ) chicon
+                ) chicon */
+                left join ttls2 t2 on ttls.ccd = 'H_'||t2.ccd
+                left join ttls2 t3 on ttls.ccd = 'L_'||t3.ccd
                 left join (
                     select concept_cd, min(name) name
                     from (
 		      select c_basecode concept_cd,c_name name from {3}.{4}
-		      where ({5}) and {6}
-		      union all
+		      where ({5} or {6}) and {7}
+		      union
 		      select concept_cd,name_char name from {2}.concept_dimension
 		      )
                     group by concept_cd
-                ) cd on cd.concept_cd = chicon.ccd
-
+                ) cd on cd.concept_cd = ttls.joinccd
+		-- are we eliminating some rare but important fact by setting a hard lower limit of 10 facts?
+		-- hopefully not
+		where ttls.total > 10
                 union all
-                select 'TOTAL' prefix, 'TOTAL' ccd, '' name
-                , (select count(distinct pn) from {1}) total
-                , 1 frc_total from dual
-                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.allbranchnodes)
+                select 'TOTAL' prefix, 'TOTAL' ccd, 'All Patients in Population' name
+                , {8} total, 1 frc_total from dual
+                '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes, pat_totalcount)
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
@@ -490,6 +572,7 @@ class Chi2:
 
             if runChi:
                 # make a temp table of patient set for query chi_name=m###_r###_i###
+                # why are we looking at PATIENT_DIMENSION? Don't we already have chi_pats?
                 log.info('Creating chi columns for PSID {0}'.format(self.psid))
                 log.debug('Creating temp table for patient set...')
                 sql = '''
@@ -509,30 +592,41 @@ class Chi2:
 
                 sql = 'alter table {0} add frc_{1} number'.format(pcounts, chi_name)
                 cols, rows = do_log_sql(db, sql)
-
+                log.info('Updating view for correlated update')
                 sql = '''
+                -- pconcepts = {0}
+                -- chi_name = {1}
+                create or replace view new_cohort as
+		with c1 as (
+		  -- select cohort of interest from test_pconcepts table
+		  select ccd      -- concept code
+		  , count(distinct mc.pn) cnt  -- count
+		  from {0} pc join {1} mc on mc.pn = pc.pn
+		  group by ccd
+		), c2 as (select ccd,cnt denom from c1 where ccd like 'LOINC:%')
+		select c1.ccd,min(cnt) cnt,min(c2h.denom) hdenom,min(c2l.denom) ldenom from
+		c1 left join c2 c2h on c1.ccd = 'H_'||c2h.ccd
+		left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
+		group by c1.ccd
+		'''.format(pconcepts,chi_name)
+		cols, rows = do_log_sql(db,sql)
+		# This view-based approach seems to run in under 2min for a 19k patient-set
+		log.info('updating columns of {0}'.format(pcounts))
+                sql = '''
+                -- chi_name = {0}
+                -- pcounts = {1}
+                -- len(pats) = {2}
                 update (
-                    with cnts as (
-                        -- select cohort of interest from {0} table
-                        select ccd      -- concept code
-                        -- try sometime pc.pn and see if difference
-                        , count(distinct mc.pn) cnt  -- count
-                        , count(distinct mc.pn) / {3} frc
-                                        -- fraction of all patients
-                        from {0} pc 
-                        join {1} mc on mc.pn = pc.pn 
-                        group by ccd
-                    )
                     select 
-                        pc.{1} emptycnt -- empty target column for counts
-                        , nvl(cnts.cnt,0) newcnt -- source column for counts
-                        , pc.frc_{1} emptyfrc -- empty target column for fractions
-                        , nvl(cnts.frc,0) newfrc -- source column for fractions
-                    from {2} pc 
-                    left join cnts on pc.ccd = cnts.ccd
+                        pc.{0} emptycnt -- empty target column for counts
+                        , coalesce(cnt,0) newcnt -- source column for counts
+                        , pc.frc_{0} emptyfrc -- empty target column for fractions
+                        , coalesce(cnt/coalesce(hdenom,ldenom,{2}),0) newfrc -- source column for fractions
+                    from {1} pc 
+                    left join new_cohort on pc.ccd = new_cohort.ccd
                 ) up
                 set up.emptycnt = up.newcnt, up.emptyfrc = up.newfrc
-                '''.format(pconcepts, chi_name, pcounts, len(pats))
+                '''.format(chi_name, pcounts, len(pats))
                 cols, rows = do_log_sql(db, sql)
 
                 sql = '''
@@ -729,20 +823,23 @@ class Chi2:
             , frc_{3} 
             , {0}
             , frc_{0}
-            , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
-            /* -- TODO: show rows where concepts in ref but not test patient set? For now
-               -- no, b/c test pat sets are limited to strict subsets of reference pat set.
-               -- but we may want to do something like this is semi-overlapping sets are allowed.
-            , case
-                when frc_{3} = frc_{0} then
-                    0
-                when frc_{3} > 0 then
-                    power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3})
-                else
-                    null
-                end chisq
-            */
-            , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
+            -- , power({0} - (cohort.pat_count * frc_{3}), 2) / (cohort.pat_count * frc_{3}) chisq
+            -- oops, that's not really chisq df=1, but the below is...
+            , case 
+	      when frc_{3} = frc_{0} then 0
+	      when frc_{3} = 1 or frc_{0} = 1 then null
+	      else
+	      power({0} - (cohort.pat_count * frc_{3}), 2)*(1/(cohort.pat_count * frc_{3}) + 
+	      1/((cohort.pat_count-{0}) * frc_{3}) + 1/(cohort.pat_count * (1-frc_{3})) + 
+	      1/((cohort.pat_count-{0}) * (1-frc_{3}))) 
+	      end chisq
+	    , case 
+	      when frc_{0}=frc_{3} then 1 
+	      when frc_{0} in (0,1) or frc_{3} in (0,1) then 0
+	      else
+	      (1-frc_{3})*frc_{0}/((1-frc_{0})*frc_{3}) 
+	      end odds_ratio
+	    , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
             from {1}
             , cohort
             where frc_{3} > 0   -- reference patient set frequency
@@ -751,17 +848,19 @@ class Chi2:
         )
         , ranked_data as (
             select data.*
-            , row_number() over (order by chisq*dir desc) as rank
-            , row_number() over (order by chisq*dir asc) as revrank    
+            --, row_number() over (order by chisq*dir desc) as rank
+            --, row_number() over (order by chisq*dir asc) as revrank  -- this is not a useless line
+            , row_number() over (order by odds_ratio desc) as rank
+            , row_number() over (order by odds_ratio asc) as revrank  -- this is not a useless line
             from data   
             join patterns on data.prefix = patterns.c_name 
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from data where ccd = 'TOTAL'
         union all
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, dir
+        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from ranked_data {2}
         '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
         cols, rows = do_log_sql(db, sql, self.filter)
