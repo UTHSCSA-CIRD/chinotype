@@ -15,6 +15,7 @@ Options:
     -p PSID             Patient set ID to test, TOTAL population as reference
     -t PSID             Patient set ID to test
     -r PSID             Patient set ID for reference
+    -u PSID		Multiple PSIDs (will use TOTAL population as reference and not do statistics)
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
     -o --output         Save chi2 csv output file
@@ -58,6 +59,7 @@ def config(arguments={}):
         opt['psid'] = None
         opt['tpsid'] = None
         opt['rpsid'] = None
+        opt['multpsid'] = None
         opt['to_file'] = False
         opt['to_json'] = False
         opt['limit'] = None
@@ -69,6 +71,7 @@ def config(arguments={}):
         opt['psid'] = arguments['-p'] or None
         opt['tpsid'] = arguments['-t'] or None
         opt['rpsid'] = arguments['-r'] or None
+        opt['multpsid'] = arguments['-u'] or None
         opt['to_file'] = arguments['--output'] or False
         opt['to_json'] = arguments['--json'] or False
         opt['limit'] = arguments['-n'] or None
@@ -113,6 +116,7 @@ class Chi2:
         self.psid_done = False
         self.tpsid = opt['tpsid']
         self.rpsid = opt['rpsid']
+        self.multpsid = opt['multpsid']
         self.chi_host = db['chi_host']
         self.chi_port = db['chi_port']
         self.chi_user = db['chi_user']
@@ -287,7 +291,8 @@ class Chi2:
                     return self.status
             except:
                 raise
-
+	    
+	    import pdb; pdb.set_trace()
             # Get QMID and QIID to make column names
             if self.chi_name is None:
                 # Make sure patient set exists in i2b2
