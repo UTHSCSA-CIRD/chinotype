@@ -66,12 +66,15 @@ def config(arguments={}):
         opt['filter'] = None
         opt['cutoff'] = None
         opt['exists'] = False
+        opt['dostats'] = True
     else:
         opt['qmid'] = arguments['-m'] or None
         opt['psid'] = arguments['-p'] or None
         opt['tpsid'] = arguments['-t'] or None
         opt['rpsid'] = arguments['-r'] or None
         opt['multpsid'] = arguments['-u'] or None
+        if len(opt['multpsid'])>1: opt['dostats'] = False 
+	else: opt['dostats'] = True
         opt['to_file'] = arguments['--output'] or False
         opt['to_json'] = arguments['--json'] or False
         opt['limit'] = arguments['-n'] or None
@@ -292,7 +295,7 @@ class Chi2:
             except:
                 raise
 	    
-	    import pdb; pdb.set_trace()
+	    #import pdb; pdb.set_trace()
             # Get QMID and QIID to make column names
             if self.chi_name is None:
                 # Make sure patient set exists in i2b2
