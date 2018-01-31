@@ -7,6 +7,7 @@
 ;   grant select on i2b2demodata.observation_fact to foo;
 ;   grant select on i2b2demodata.concept_dimension to foo;
 ;   grant select on i2b2metadata.i2b2 to foo;
+;   grant select on i2b2metadata.schemes to foo;
 ;   grant create session to foo;
 ;   grant create table to foo;
 ;   gramt unlimited tablespace to foo;
