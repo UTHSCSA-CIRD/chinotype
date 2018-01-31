@@ -528,6 +528,10 @@ class Chi2:
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
                 # total is used for filtering by threshold, so needs an index
+                try:
+                    cols, rows = do_log_sql(db,'drop index {0}_tl_idx'.format(pcounts))
+                except:
+                    pass
                 sql = '''
                 create index {0}_tl_idx on {0} (total)
                 '''.format(pcounts)
@@ -556,6 +560,10 @@ class Chi2:
 		'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
 		do_log_sql(db,'commit')
+                try:
+                    cols, rows = do_log_sql(db,'drop index {0}_idx'.format(chischemes))
+                except:
+                    pass
 		sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
 
