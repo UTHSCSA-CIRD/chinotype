@@ -2,7 +2,16 @@
 '''
 Chinotype back-end script, RC v1.1.0
 Create counts and prevalences for ranking patient cohorts
-   by relative prevalence of concepts.
+   by relative prevalence of concepts. The PSID argument 
+   in the usage hints below is the value in
+   the RESULT_INSTANCE_ID column of the 
+   i2b2demodata.QT_QUERY_RESULT_INSTANCE table, and it's
+   the default name the web plugin gives to your cohort
+   of interest. Note that one query will usually produce
+   several RESULT_INSTANCE_ID's. You should use the one 
+   whose RESULT_TYPE_ID is 1, because that's the result
+   corresponding to a patient-set. The 4's are patient
+   counts.
 
 Usage:
    chinotype.py [options][-f PATTERN]... -m QMID
