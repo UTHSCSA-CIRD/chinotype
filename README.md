@@ -1,5 +1,5 @@
 # chinotype
-General purpose script for looking for over and under represented EHR facts in an i2b2 patient-set. Can be used for finding adverse drug reactions, off-label uses, healthcare outcomes disparities, comorbidities, and who knows what else. The name is a portmanteau of Chi-squared and phenotype.
+General purpose script for looking for over and under represented EHR facts in an i2b2 patient-set. Can be used for finding healthcare outcomes disparities, comorbidities, and who knows what else. The name is a portmanteau of Chi-squared and phenotype.
 
 Also includes a web plugin to call the script from i2b2.
 
@@ -18,6 +18,26 @@ echo 'export ORACLE_HOME="/usr/lib/oracle/$ORACLE_VERSION/client"'>> $HOME/.bash
 echo 'export PATH=$PATH:"$ORACLE_HOME/bin"' >> $HOME/.bashrc
 echo 'export LD_LIBRARY_PATH="$ORACLE_HOME/lib"' >> $HOME/.bashrc
 ```
+#### Users and grandts
+Using the same dummy values as in `chi2/config.ini.example` we would have to create user `foo` with
+the following grants:
+```
+create user "FOO" identified by "SEKRET_PW_GOES_HERE";
+grant select on i2b2demodata.qt_query_result_instance to foo;
+grant select on i2b2demodata.qt_query_instance to foo;
+grant select on i2b2demodata.qt_query_master to foo;
+grant select on i2b2demodata.qt_patient_set_collection to foo;
+grant select on i2b2demodata.observation_fact to foo;
+grant select on i2b2demodata.concept_dimension to foo;
+grant select on i2b2demodata.patient_dimension to foo;
+grant select on i2b2metadata.i2b2 to foo;
+grant select on i2b2metadata.schemes to foo;
+grant create session to foo;
+grant create table to foo;
+grant unlimited tablespace to foo;
+grant create view to foo;
+```
+
 #### Development Environment
 ```
 yum install epel-release
