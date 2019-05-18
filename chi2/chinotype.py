@@ -825,6 +825,10 @@ class Chi2:
             '''.format(self.chischemes)
             cols, rows = do_log_sql(db, sql)
             prefixes = [(r[0], r[1]) for r in rows]
+        # NOTE: comparing to enclosing population might actually mean that the
+        # chi squared test for goodness of fit should be used rather than the
+        # test for independence... 
+        # http://www.ablongman.com/graziano6e/text_site/MATERIAL/statconcepts/chisquare.htm
         # Get results data 
         sql = '''
         with patterns as (
