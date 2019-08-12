@@ -365,7 +365,7 @@ class Chi2:
                 create table {0} as
                 select distinct patient_num pn
                 from {1}.observation_fact
-                where concept_cd like 'KUMC|DischargeDisposition:%'
+                -- where concept_cd like 'KUMC|DischargeDisposition:%'
                 '''.format(self.chipats, schema)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
