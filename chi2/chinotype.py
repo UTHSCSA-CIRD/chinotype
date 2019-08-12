@@ -524,6 +524,10 @@ class Chi2:
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
                 # prefix is for filtering the output, so needs an index
+                try:
+                    cols, rows = do_log_sql(db,'drop index {0}_ccd_idx'.format(pcounts))
+                except:
+                    pass
                 sql = '''create bitmap index {0}_ccd_idx on {0} (ccd)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
