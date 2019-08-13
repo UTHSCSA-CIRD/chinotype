@@ -167,10 +167,8 @@ class Chi2:
     def getCrcOpt(self):
         return self.crc_host, self.crc_port, self.crc_service, self.crc_user, self.crc_pw
 
-
     def getChiOpt(self):
         return self.chi_host, self.chi_port, self.chi_service, self.chi_user, self.chi_pw, self.chi_name
-
 
     def getOracleDBI(self, host, port, service, user, pw, temp_table=None):
         dsn = cx.makedsn(host, int(port), service_name=service)
@@ -226,7 +224,6 @@ class Chi2:
 
         return self.runChi()
 
-
     def runPSID_p2(self):
         if self.rpsid == self.tpsid:
             self.status = 'Job canceled, identical patient sets'
@@ -261,7 +258,6 @@ class Chi2:
         self.qrid = None
         self.chi_name = None
         self.ref = None
-
 
     def runPSID(self):
         '''Run chi2 for an i2b2 patient set id'''
@@ -369,7 +365,7 @@ class Chi2:
                 '''.format(self.chipats, schema)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                alter table {0} add constraint {0}_pk primary key (pn)
+                alter table {0} add primary key (pn)
                 '''.format(self.chipats)
                 cols, rows = do_log_sql(db, sql)
             # check if pconcepts exists
@@ -435,7 +431,7 @@ class Chi2:
                 #.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
-                alter table {0} add constraint {0}_pk primary key (ccd,pn)
+                alter table {0} add primary key (ccd,pn)
                 '''.format(pconcepts)
                 cols, rows = do_log_sql(db, sql)
                 #sql = '''
@@ -520,7 +516,9 @@ class Chi2:
                 '''.format(pcounts, pconcepts, schema, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes, pat_totalcount)
                 cols, rows = do_log_sql(db, sql)
 
-                sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
+                # Why do we need the total column in the index?
+                #sql = '''alter table {0} add constraint {0}_pk primary key (prefix,ccd,total)
+                sql = '''alter table {0} add primary key (prefix,ccd)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
                 # prefix is for filtering the output, so needs an index
@@ -570,7 +568,6 @@ class Chi2:
                     pass
 		sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
-
 
 
     def runChi(self):
@@ -725,7 +722,6 @@ class Chi2:
         except:
             raise
 
-
     def checkIntersection(self):
         host, port, service, user, pw = self.getCrcOpt()
         dbi = self.getOracleDBI(host, port, service, user, pw)
@@ -747,7 +743,6 @@ class Chi2:
             except:
                 raise
         return True
-
 
     def dbmgr(self, connect, temp_table=None):
         '''Make a context manager that yields cursors, given connect access.
@@ -777,7 +772,6 @@ class Chi2:
                 cur.close()
         return dbtrx
 
-
     def getFilterSql(self):
         sql = 'select c_name from {0}'.format(self.chischemes)
         if 'ALL' in self.filter:
@@ -788,7 +782,6 @@ class Chi2:
             if self.filter[p] != 'ALL':
                 sql += '\nor c_key like :{0} || \'%\''.format(p)
         return sql
-
 
     def chi2_output(self, db):
         if (self.chi_name is None or self.chi_name == '') and self.extant:
