@@ -562,12 +562,18 @@ class Chi2:
 		'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
 		do_log_sql(db,'commit')
-                try:
-                    cols, rows = do_log_sql(db,'drop index {0}_idx'.format(chischemes))
-                except:
-                    pass
-		sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
-		cols, rows = do_log_sql(db,sql)
+		
+		sql = '''
+                alter table {0} add primary key (c_name)
+                '''.format(chischemes)
+                cols, rows = do_log_sql(db, sql)
+
+                #try:
+                    #cols, rows = do_log_sql(db,'drop index {0}_idx'.format(chischemes))
+                #except:
+                    #pass
+		#sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
+		#cols, rows = do_log_sql(db,sql)
 
 
     def runChi(self):
@@ -892,9 +898,11 @@ class Chi2:
                     data = dict(zip(cols, row))
                     for k, v in sorted(data.items(), key=lambda x: cols.index(x[0])):
                         if k in quote:
-                            file.write('\"{0}\"'.format(v))
+                            # clean up embedded single quotes
+                            file.write('\"{0}\"'.format(v.replace('"',"'"))) 
                         else:
-                            file.write('{0}'.format(v))
+			    # why not: file.write(str(v))   ...?
+                            file.write('{0}'.format(v)) 
                         if k == cols[-1]:
                             file.write('\n')
                         else:
