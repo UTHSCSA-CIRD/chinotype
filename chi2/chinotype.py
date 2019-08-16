@@ -899,10 +899,10 @@ class Chi2:
                     for k, v in sorted(data.items(), key=lambda x: cols.index(x[0])):
                         if k in quote:
                             # clean up embedded single quotes
-                            file.write('\"{0}\"'.format(v.replace('"',"'"))) 
+                            file.write('\"{0}\"'.format(v.replace('"',"'") or '')) 
                         else:
 			    # why not: file.write(str(v))   ...?
-                            file.write('{0}'.format(v)) 
+                            file.write('{0}'.format(v or '')) 
                         if k == cols[-1]:
                             file.write('\n')
                         else:
