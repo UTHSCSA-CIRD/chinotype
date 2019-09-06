@@ -39,19 +39,23 @@ chi_pats=chi_concept_pats
 ; are drug categories (yours is likely different). In UTHSCSA's i2b2, 
 ; procedure branch nodes have paths that end in '\A________\' whereas leaf 
 ; nodes lack the leading 'A'. Your site is likely different.
-chi_branchnodes=c_basecode like 'ICD9:___' or c_basecode like 'ICD9:___._' or c_name like '[_____]%' or c_fullname like '\i2b2\Procedures\PRC\Meta%\A________\'
+;chi_branchnodes=c_basecode like 'ICD9:___' or c_basecode like 'ICD9:___._' or c_name like '[_____]%' or c_fullname like '\i2b2\Procedures\PRC\Meta%\A________\'
+chi_branchnodes=1=1
 
 ; SQL snippet for branch nodes that contain leaf nodes capable of having 
 ; value-flags, i.e. being above or below some reference value
 ; If you want to not include such nodes, setting chi_vfnodes to 0 might work...
-chi_vfnodes=c_basecode like 'LOINC:_____-_' or c_basecode like 'LOINC:____-_' or c_basecode like 'LOINC:___-_'
+; Note: maybe the mere presence or absence of a valueflag is a more robust 
+; criterion string-hacking. Will try leaving this out.
+;chi_vfnodes=c_basecode like 'LOINC:_____-_' or c_basecode like 'LOINC:____-_' or c_basecode like 'LOINC:___-_'
+chi_vfnodes=c_totalnum > 10 and c_basecode is not NULL and lower(c_tablename) = 'concept_dimension'
 
 ; SQL snippet that applies to further limit all the above results, probably not 
 ; very site-specific. The c_totalnum restriction is to avoid the long tail of 
 ; branch nodes too sparsely populated to be meaningfully interpreted anyway. 
 ; The c_visualattributes explicitly filters for branch nodes (active, hidden,
 ; or inactive we don't care-- this is data MINING)
-chi_allbranchnodes=c_totalnum > 10 and c_visualattributes like 'F%' and c_basecode is not NULL
+chi_allbranchnodes=c_totalnum > 10 and c_visualattributes like 'F%' and c_basecode is not NULL and lower(c_tablename) = 'concept_dimension'
 
 ; The name of the ontology table in metaschema to be used to find branch nodes
 chi_termtable=i2b2
