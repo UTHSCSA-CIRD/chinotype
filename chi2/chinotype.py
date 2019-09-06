@@ -374,37 +374,18 @@ class Chi2:
                 cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pconcepts))
             except:
                 log.info('chi_pconcepts table ({0}) does not exist, creating it...'.format(pconcepts))
-                #try:
-		    #log.debug('Checking if chi_obsfact table exists...')
-		    #cols, rows = do_log_sql(db, 'select 1 from {0} where rownum = 1'.format(pobsfact))
-		#except:
-		    #log.info('chi_obsfact table ({0}) does not exist, creating it...'.format(pobsfact))
-		    #sql = '''
-		    #create table {0} as 
-		    #select distinct patient_num,obs.concept_cd,valueflag_cd,concept_path 
-		    #from {1}.observation_fact obs join {1}.concept_dimension cd 
-		    #on obs.concept_cd = cd.concept_cd
-		    #'''.format(pobsfact,schema)
-		    #cols, rows = do_log_sql(db, sql)
-		    #sql = '''create bitmap index {0}_cc_idx on {0} (concept_cd)'''.format(pobsfact)
-		    #cols, rows = do_log_sql(db, sql)
-		    ##sql = '''create index {0}_cpcc on {0} (concept_path, concept_cd)'''.format(pobsfact)
-		    ##cols, rows = do_log_sql(db, sql)
-		    ## the below may be better than above
-		    #sql = '''create index {0}_vfcppn on {0} (valueflag_cd, concept_path, patient_num)'''.format(pobsfact)
-		    #cols, rows = do_log_sql(db, sql)
                 sql = '''
                 create table {0} as
+
                 -- your basic list of distinct patients and raw concept codes from the datamart (1)
                 select patient_num pn, concept_cd ccd
                 from {1}.observation_fact obs
-                -- from {1} obs -- 1 = pobsfact
                 join {2} chipat on chipat.pn = obs.patient_num
                 union
+
                 -- distinct patients and certain branch nodes, as gathered from the ontology (3).(4)
                 select obs.patient_num pn, c_basecode ccd 
                 from {3}.{4}  
-                -- join {1} obs
                 join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
                 join {1}.observation_fact obs 		-- use obs_fact
@@ -415,20 +396,21 @@ class Chi2:
                 -- selection criteria affecting all branch nodes
                 {7}
                 union
-                -- same as above, but facts that are above or below their reference ranges
-                -- i.e. labs
+
+                -- same as above, but facts that are outside their reference 
+                -- ranges, i.e. labs
                 select patient_num pn,valueflag_cd||'_'||c_basecode ccd 
                 from {3}.{4}  
-                -- join {1} obs
                 join {1}.concept_dimension cd  		-- use obs_fact
                 on concept_path like c_dimcode||'%' 
                 join {1}.observation_fact obs 		-- use obs_fact
                 on cd.concept_cd = obs.concept_cd 	-- use obs_fact
                 join {2} chipat on chipat.pn = obs.patient_num
-                where ( {6} ) and
-                {7} and valueflag_cd in ('H','L')
+                where 
+                -- ( {6} ) and
+                -- {7} and 
+                valueflag_cd != '@'
                 '''.format(pconcepts, self.schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
-                #.format(pconcepts, pobsfact, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
                 cols, rows = do_log_sql(db, sql)
                 sql = '''
                 alter table {0} add primary key (ccd,pn)
@@ -458,6 +440,7 @@ class Chi2:
                 -- self.allbranchnodes = {7}
                 -- pat_totalcount = {8}
                 create table {0} as
+                --- This seems to be the subquery that creates counts by concept
                 with ttls as (
 		  select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
 		  ,count(distinct pn) total from {1} 
@@ -477,10 +460,21 @@ class Chi2:
                 , case 
 		  when ttls.ccd like 'H\_%' escape '\\' then '[ABOVE REFERENCE] '||name
 		  when ttls.ccd like 'L\_%' escape '\\' then '[BELOW REFERENCE] '||name
+		  when ttls.ccd like 'A\_%' escape '\\' then '[ABNORMAL] '||name
 		  else name
 		end name
-		, ttls.total, ttls.total/coalesce(t2.total,t3.total,383752) frc_total 
+		/*
+		ttls.total is one of these...
+		the total patients with high values if t2.total is not NULL (so t2.total is the denominator)
+		the total patients with low values if t3.total is not NULL (so t3.total is the denominator)
+		the total patients with abnormal values if t4.total is not NULL (so t4.total is the denominator)
+		the total number of patients having the lab done if all tX.totals null (grand total should be the denominator)
+		definitely not a hardcoded value! wtf was I thinking
+		*/
+		, ttls.total, ttls.total/coalesce(t2.total,t3.total,t4.total,{8}) frc_total 
 		from ttls
+
+		-- dead code
                 /*from (
                     select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
                     , case 
@@ -495,8 +489,11 @@ class Chi2:
                     from {1} 
                     group by ccd
                 ) chicon */
+                -- end dead code
+
                 left join ttls2 t2 on ttls.ccd = 'H_'||t2.ccd
                 left join ttls2 t3 on ttls.ccd = 'L_'||t3.ccd
+                left join ttls2 t4 on ttls.ccd = 'A_'||t4.ccd
                 left join (
                     select concept_cd, min(name) name
                     from (
