@@ -407,7 +407,7 @@ class Chi2:
                 on cd.concept_cd = obs.concept_cd 	-- use obs_fact
                 join {2} chipat on chipat.pn = obs.patient_num
                 where 
-                -- ( {6} ) and
+                ( {6} ) and
                 -- {7} and 
                 valueflag_cd != '@'
                 '''.format(pconcepts, self.schema, self.chipats, self.metaschema, self.termtable, self.branchnodes, self.vfnodes, self.allbranchnodes)
