@@ -27,6 +27,7 @@ Options:
     -v --verbose        Verbose/debug output (show all SQL)
     -c --config=FILE    Configuration file [default: config.ini]
     -o --output         Save chi2 csv output file
+    -w --write=FILE     What file to save to? [default: output.csv]
     -j --json           Return JSON output
     -e --exists         Return extant data only; do not create new data columns
     -n LIMIT            Output only LIMIT rows of over/under represented facts
@@ -80,6 +81,7 @@ def config(arguments={}):
         opt['rpsid'] = arguments['-r'] or None
         opt['to_file'] = arguments['--output'] or False
         opt['to_json'] = arguments['--json'] or False
+        opt['outfile'] = arguments['--write'] or False
         opt['limit'] = arguments['-n'] or None
         if opt['limit'] == 'ALL' or opt['limit'] == 'all': opt['limit'] = None
         if opt['limit'] and not opt['limit'].isdigit():
@@ -98,10 +100,11 @@ class Chi2:
         opt = config(args)
         db=opt['database']
         self.debug_dbopt(db)
-        self.outfile = opt['output']['csv'] # filename
+        self.outfile = opt['outfile'] or opt['output']['csv'] # filename
         self.to_file = opt['to_file']  # write to file? T/F
         self.to_json = opt['to_json']  # return JSON output? T/F
         if self.to_file:
+	    self.outfile = self.to_file
             log.info('output file={0}'.format(self.outfile))
         self.crc_host = db['crc_host']
         self.crc_port = db['crc_port']
