@@ -104,7 +104,6 @@ class Chi2:
         self.to_file = opt['to_file']  # write to file? T/F
         self.to_json = opt['to_json']  # return JSON output? T/F
         if self.to_file:
-	    self.outfile = self.to_file
             log.info('output file={0}'.format(self.outfile))
         self.crc_host = db['crc_host']
         self.crc_port = db['crc_port']
