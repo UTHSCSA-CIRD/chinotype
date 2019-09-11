@@ -556,12 +556,18 @@ class Chi2:
 		'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
 		do_log_sql(db,'commit')
+		# Make all c_keys :-terminated if not already
+		# TODO: test!
+		sql = '''
+		update {0} set c_key = c_key||':' where c_key not like '%:'
+		'''.format(chischemes)
+		cols, rows = do_log_sql(db,sql)
+		do_log_sql(db,'commit')
 		sql = '''
 		update {0} set c_description = c_name where c_description is null
 		'''.format(chischemes)
 		cols, rows = do_log_sql(db,sql)
 		do_log_sql(db,'commit')
-		
 		sql = '''
                 alter table {0} add primary key (c_name)
                 '''.format(chischemes)
@@ -778,11 +784,13 @@ class Chi2:
         return dbtrx
 
     def getFilterSql(self):
+	# Should this be select c_key ?
         sql = 'select c_name from {0}'.format(self.chischemes)
         if 'ALL' in self.filter:
             sql += ' where 1=1'
         elif len(self.filter) > 0:
             sql += '\nwhere 1=0'
+        # Shouldn't this be indented to be part of elif block?
         for p in range(0, len(self.filter)):
             if self.filter[p] != 'ALL':
                 sql += '\nor c_key like :{0} || \'%\''.format(p)
