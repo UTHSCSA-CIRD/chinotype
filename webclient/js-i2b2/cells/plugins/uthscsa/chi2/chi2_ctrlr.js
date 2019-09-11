@@ -198,6 +198,8 @@ TODO: localize jslint exceptions
                 if ($j('#concepts-select option').length == 1) {
                     for (p=0; p < resp.prefixes.length; p++) {
                         var code = resp.prefixes[p][0];
+			// to avoid prefix ambiguities
+			if (code.substr(-1) != ':') { code += ':' };
                         var desc = resp.prefixes[p][1];
                         $j('#concepts-select').append('<option value="' + code + '">' + desc + '</option>');
                     }
