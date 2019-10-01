@@ -742,7 +742,7 @@ class Chi2:
                 sql = '''
                 select count(*) from (
                     select patient_num from {0}.qt_patient_set_collection
-                    where result_instance_id in ({1}) -- test
+                    where result_instance_id in {1} -- test
                     minus
                     select patient_num from {0}.qt_patient_set_collection
                     where result_instance_id = {2} -- ref
