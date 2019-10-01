@@ -246,7 +246,7 @@ class Chi2:
                 # then do the test patient set, using the reference column name
                 self.ref = ref
                 for ii in self.tpsid:
-		    self.resetPS(self.tpsid)
+		    self.resetPS(ii)
 		    self.runPSID()
                 if self.extant and self.chi_name is None:
                     if self.to_json:
