@@ -287,6 +287,7 @@ class Chi2:
                 '''.format(owner, table_name, self.psid)
                 cols, rows = do_log_sql(db, sql)
                 if len(rows) > 0:
+		    import pdb; pdb.set_trace()
                     self.chi_name = rows[0][0]
                     self.psid_done = True
                     log.info('Using preexisting chi columns for PSID {0}'.format(self.psid))
