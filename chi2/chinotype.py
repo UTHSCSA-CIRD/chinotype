@@ -747,7 +747,9 @@ class Chi2:
                     select patient_num from {0}.qt_patient_set_collection
                     where result_instance_id = {2} -- ref
                 )
-                '''.format(self.schema, tuple(self.tpsid), self.rpsid)
+                '''.format(self.schema, 
+			   tuple(self.tpsid) if len(self.tpsid)>1 else '('+str(self.tpsid[0])+')', 
+			   self.rpsid)
                 cols, rows = do_log_sql(db, sql)
                 if rows[0][0] > 0:
                     self.status = 'Job canceled, all patients in test subset must be in the reference set'
