@@ -35,7 +35,7 @@ WebTest==2.0.15
 argparse==1.2.1
 beautifulsoup4==4.3.2
 six==1.7.3
-waitress==0.8.9
+waitress==1.4.0
 WebOb==1.4
 ordereddict
 
