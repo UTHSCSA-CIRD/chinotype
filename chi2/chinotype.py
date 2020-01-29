@@ -86,7 +86,7 @@ def config(arguments={}):
         if opt['limit'] == 'ALL' or opt['limit'] == 'all': opt['limit'] = None
         if opt['limit'] and not opt['limit'].isdigit():
             log.error('Invalid -n, --limit (must be integer): {0}'.format(opt['limit']))    
-            foo = docopt(__doc__, argv=['--help'])
+            #foo = docopt(__doc__, argv=['--help'])
         opt['filter'] = list(set(arguments['-f'])) or []  # set removes duplicates
         opt['cutoff'] = arguments['-x'] or None
         opt['exists'] = arguments['--exists'] or False
@@ -185,8 +185,8 @@ class Chi2:
 
     def runQMID(self):
         '''Run chi2 for an i2b2 query master id'''
-        pconcepts = self.pconcepts
-        pcounts = self.pcounts
+        #pconcepts = self.pconcepts
+        #pcounts = self.pcounts
         host, port, service, user, pw = self.getCrcOpt()
         dbi = self.getOracleDBI(host, port, service, user, pw)
         with dbi() as db:
@@ -263,7 +263,7 @@ class Chi2:
 
     def runPSID(self):
         '''Run chi2 for an i2b2 patient set id'''
-        pconcepts = self.pconcepts
+        #pconcepts = self.pconcepts
         pcounts = self.pcounts
         host, port, service, user, pw = self.getCrcOpt()
         dbi = self.getOracleDBI(host, port, service, user, pw)
@@ -344,7 +344,7 @@ class Chi2:
         schema = self.schema
         metaschema = self.metaschema
         pconcepts = self.pconcepts
-        pobsfact = self.pobsfact
+        #pobsfact = self.pobsfact
         pcounts = self.pcounts
         chischemes = self.chischemes
         host, port, service, user, pw, temp_table = self.getChiOpt()
@@ -686,11 +686,11 @@ class Chi2:
     
     def checkRerunQMID(self, db):
         '''Check if results already exists for QMID'''
-        pconcepts = self.pconcepts
+        #pconcepts = self.pconcepts
         pcounts = self.pcounts
         qmid = self.qmid
         chi_name = self.chi_name
-        schema = self.schema
+        #schema = self.schema
         pats = self.pats
         # if pcounts has QMID & patient count matches latest, return existing results
         # if pcounts has QMID & patient count DOES NOT match latest, warn/exit
