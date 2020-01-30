@@ -39,9 +39,14 @@ instance/result for a given QMID will be used.
 
 PSID is the result instance ID (from i2b2 QT tables). 
 '''
-from sys import argv
+from sys import argv,  version_info
 from docopt import docopt
-from ConfigParser import SafeConfigParser
+
+if version_info[0] < 3:
+    from ConfigParser import SafeConfigParser
+else:
+    from configparser import SafeConfigParser
+
 import cx_Oracle as cx
 from contextlib import contextmanager
 import logging
@@ -537,41 +542,42 @@ class Chi2:
                 create index {0}_tl_idx on {0} (total)
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
-	    try:
-		log.debug('Checking if empirical schemes table exists...')
-		cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
-	    except:
-		log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
-		sql = '''
-		create table {0} as
-		select c_key, prefix c_name, c_description 
-		from (select distinct prefix from {1}) pct
-		left join {2}.schemes
-		on prefix = {2}.schemes.c_name
-		where prefix is not null
-		'''.format(chischemes,pcounts,metaschema)
-		cols, rows = do_log_sql(db,sql)
-		sql = '''
-		update {0} set c_key = c_name where c_key is null
-		'''.format(chischemes)
-		cols, rows = do_log_sql(db,sql)
-		do_log_sql(db,'commit')
-		# Make all c_keys :-terminated if not already
-		# TODO: test!
-		sql = '''
-		update {0} set c_key = c_key||':' where c_key not like '%:'
-		'''.format(chischemes)
-		cols, rows = do_log_sql(db,sql)
-		do_log_sql(db,'commit')
-		sql = '''
-		update {0} set c_description = c_name where c_description is null
-		'''.format(chischemes)
-		cols, rows = do_log_sql(db,sql)
-		do_log_sql(db,'commit')
-		sql = '''
-                alter table {0} add primary key (c_name)
-                '''.format(chischemes)
-                cols, rows = do_log_sql(db, sql)
+
+        log.debug('Checking if empirical schemes table exists...')
+        try:
+            cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
+        except:
+            log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
+            sql = '''
+            create table {0} as
+            select c_key, prefix c_name, c_description 
+            from (select distinct prefix from {1}) pct
+            left join {2}.schemes
+            on prefix = {2}.schemes.c_name
+            where prefix is not null
+            '''.format(chischemes,pcounts,metaschema)
+            cols, rows = do_log_sql(db,sql)
+            sql = '''
+            update {0} set c_key = c_name where c_key is null
+            '''.format(chischemes)
+            cols, rows = do_log_sql(db,sql)
+            do_log_sql(db,'commit')
+            # Make all c_keys :-terminated if not already
+            # TODO: test!
+            sql = '''
+            update {0} set c_key = c_key||':' where c_key not like '%:'
+            '''.format(chischemes)
+            cols, rows = do_log_sql(db,sql)
+            do_log_sql(db,'commit')
+            sql = '''
+            update {0} set c_description = c_name where c_description is null
+            '''.format(chischemes)
+            cols, rows = do_log_sql(db,sql)
+            do_log_sql(db,'commit')
+            sql = '''
+                    alter table {0} add primary key (c_name)
+                    '''.format(chischemes)
+            cols, rows = do_log_sql(db, sql)
 
                 #try:
                     #cols, rows = do_log_sql(db,'drop index {0}_idx'.format(chischemes))
@@ -626,21 +632,21 @@ class Chi2:
                 -- pconcepts = {0}
                 -- chi_name = {1}
                 create or replace view new_cohort as
-		with c1 as (
-		  -- select cohort of interest from test_pconcepts table
-		  select ccd      -- concept code
-		  , count(distinct mc.pn) cnt  -- count
-		  from {0} pc join {1} mc on mc.pn = pc.pn
-		  group by ccd
-		), c2 as (select ccd,cnt denom from c1 where ccd like 'LOINC:%')
-		select c1.ccd,min(cnt) cnt,min(c2h.denom) hdenom,min(c2l.denom) ldenom from
-		c1 left join c2 c2h on c1.ccd = 'H_'||c2h.ccd
-		left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
-		group by c1.ccd
-		'''.format(pconcepts,chi_name)
-		cols, rows = do_log_sql(db,sql)
-		# This view-based approach seems to run in under 2min for a 19k patient-set
-		log.info('updating columns of {0}'.format(pcounts))
+                with c1 as (
+                  -- select cohort of interest from test_pconcepts table
+                  select ccd      -- concept code
+                  , count(distinct mc.pn) cnt  -- count
+                  from {0} pc join {1} mc on mc.pn = pc.pn
+                  group by ccd
+                ), c2 as (select ccd,cnt denom from c1 where ccd like 'LOINC:%')
+                select c1.ccd,min(cnt) cnt,min(c2h.denom) hdenom,min(c2l.denom) ldenom from
+                c1 left join c2 c2h on c1.ccd = 'H_'||c2h.ccd
+                left join c2 c2l on c1.ccd = 'L_'||c2l.ccd
+                group by c1.ccd
+                '''.format(pconcepts,chi_name)
+                cols, rows = do_log_sql(db,sql)
+                # This view-based approach seems to run in under 2min for a 19k patient-set
+                log.info('updating columns of {0}'.format(pcounts))
                 sql = '''
                 -- chi_name = {0}
                 -- pcounts = {1}

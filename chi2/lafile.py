@@ -27,7 +27,11 @@ __ http://www.hpl.hp.com/techreports/2006/HPL-2006-116.html
 
 '''
 
-from ConfigParser import SafeConfigParser
+from sys import version_info
+if version_info[0] < 3:
+    from ConfigParser import SafeConfigParser
+else:
+    from configparser import SafeConfigParser
 
 from encap import ESuite
 
