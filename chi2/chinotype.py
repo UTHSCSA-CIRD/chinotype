@@ -249,10 +249,10 @@ class Chi2:
                     self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
             else:
                 # then do the test patient set, using the reference column name
-                self.ref = ref
                 for iipsid in self.tpsid:
                     self.resetPS(iipsid)
                     self.runPSID()
+                    self.ref = ref
                     # not sure if this should be here our outdented one level
                     if self.extant and self.chi_name is None:
                         if self.to_json:
