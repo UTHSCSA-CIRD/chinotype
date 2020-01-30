@@ -543,48 +543,48 @@ class Chi2:
                 '''.format(pcounts)
                 cols, rows = do_log_sql(db, sql)
 
-        log.debug('Checking if empirical schemes table exists...')
-        try:
-            cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
-        except:
-            log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
-            sql = '''
-            create table {0} as
-            select c_key, prefix c_name, c_description 
-            from (select distinct prefix from {1}) pct
-            left join {2}.schemes
-            on prefix = {2}.schemes.c_name
-            where prefix is not null
-            '''.format(chischemes,pcounts,metaschema)
-            cols, rows = do_log_sql(db,sql)
-            sql = '''
-            update {0} set c_key = c_name where c_key is null
-            '''.format(chischemes)
-            cols, rows = do_log_sql(db,sql)
-            do_log_sql(db,'commit')
-            # Make all c_keys :-terminated if not already
-            # TODO: test!
-            sql = '''
-            update {0} set c_key = c_key||':' where c_key not like '%:'
-            '''.format(chischemes)
-            cols, rows = do_log_sql(db,sql)
-            do_log_sql(db,'commit')
-            sql = '''
-            update {0} set c_description = c_name where c_description is null
-            '''.format(chischemes)
-            cols, rows = do_log_sql(db,sql)
-            do_log_sql(db,'commit')
-            sql = '''
-                    alter table {0} add primary key (c_name)
-                    '''.format(chischemes)
-            cols, rows = do_log_sql(db, sql)
+            log.debug('Checking if empirical schemes table exists...')
+            try:
+                cols, rows = do_log_sql(db,'select 1 from {0} where rownum = 1'.format(chischemes))
+            except:
+                log.info('chi_schemes table ({0}) does not exist, creating it...'.format(chischemes))
+                sql = '''
+                create table {0} as
+                select c_key, prefix c_name, c_description 
+                from (select distinct prefix from {1}) pct
+                left join {2}.schemes
+                on prefix = {2}.schemes.c_name
+                where prefix is not null
+                '''.format(chischemes,pcounts,metaschema)
+                cols, rows = do_log_sql(db,sql)
+                sql = '''
+                update {0} set c_key = c_name where c_key is null
+                '''.format(chischemes)
+                cols, rows = do_log_sql(db,sql)
+                do_log_sql(db,'commit')
+                # Make all c_keys :-terminated if not already
+                # TODO: test!
+                sql = '''
+                update {0} set c_key = c_key||':' where c_key not like '%:'
+                '''.format(chischemes)
+                cols, rows = do_log_sql(db,sql)
+                do_log_sql(db,'commit')
+                sql = '''
+                update {0} set c_description = c_name where c_description is null
+                '''.format(chischemes)
+                cols, rows = do_log_sql(db,sql)
+                do_log_sql(db,'commit')
+                sql = '''
+                        alter table {0} add primary key (c_name)
+                        '''.format(chischemes)
+                cols, rows = do_log_sql(db, sql)
 
-                #try:
-                    #cols, rows = do_log_sql(db,'drop index {0}_idx'.format(chischemes))
-                #except:
-                    #pass
-		#sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
-		#cols, rows = do_log_sql(db,sql)
+                    #try:
+                        #cols, rows = do_log_sql(db,'drop index {0}_idx'.format(chischemes))
+                    #except:
+                        #pass
+            #sql = '''create index {0}_idx on {0} (c_name)'''.format(chischemes)
+            #cols, rows = do_log_sql(db,sql)
 
 
     def runChi(self):
