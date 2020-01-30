@@ -127,7 +127,7 @@ class Chi2:
         self.qrid = None
         self.psid = opt['psid']
         self.psid_done = False
-        self.tpsid = opt['tpsid']
+        self.tpsid = opt['tpsid'].split(',')
         self.rpsid = opt['rpsid']
         self.chi_host = db['chi_host']
         self.chi_port = db['chi_port']
@@ -232,7 +232,7 @@ class Chi2:
         return self.runChi()
 
     def runPSID_p2(self):
-        if self.rpsid == self.tpsid:
+        if self.rpsid in self.tpsid:
             self.status = 'Job canceled, identical patient sets'
             if self.to_json:
                 self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
@@ -249,12 +249,14 @@ class Chi2:
                     self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
             else:
                 # then do the test patient set, using the reference column name
-                self.resetPS(self.tpsid)
                 self.ref = ref
-                self.runPSID()
-                if self.extant and self.chi_name is None:
-                    if self.to_json:
-                        self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
+                for iipsid in self.tpsid:
+                    self.resetPS(iipsid)
+                    self.runPSID()
+                    # not sure if this should be here our outdented one level
+                    if self.extant and self.chi_name is None:
+                        if self.to_json:
+                            self.status = json.dumps({'cols': [], 'rows': [], 'status': self.status})
         return self.status
 
     def resetPS(self, psid):
@@ -743,22 +745,23 @@ class Chi2:
         host, port, service, user, pw = self.getCrcOpt()
         dbi = self.getOracleDBI(host, port, service, user, pw)
         with dbi() as db:
-            try:
-                sql = '''
-                select count(*) from (
-                    select patient_num from {0}.qt_patient_set_collection
-                    where result_instance_id = {1} -- test
-                    minus
-                    select patient_num from {0}.qt_patient_set_collection
-                    where result_instance_id = {2} -- ref
-                )
-                '''.format(self.schema, self.tpsid, self.rpsid)
-                cols, rows = do_log_sql(db, sql)
-                if rows[0][0] > 0:
-                    self.status = 'Job canceled, all patients in test subset must be in the reference set'
-                    return False
-            except:
-                raise
+            for iipsid in self.tpsid:
+                try:
+                    sql = '''
+                    select count(*) from (
+                        select patient_num from {0}.qt_patient_set_collection
+                        where result_instance_id = {1} -- test
+                        minus
+                        select patient_num from {0}.qt_patient_set_collection
+                        where result_instance_id = {2} -- ref
+                    )
+                    '''.format(self.schema, iipsid, self.rpsid)
+                    cols, rows = do_log_sql(db, sql)
+                    if rows[0][0] > 0:
+                        self.status = 'Job canceled, all patients in test subset must be in the reference set'
+                        return False
+                except:
+                    raise
         return True
 
     def dbmgr(self, connect, temp_table=None):
