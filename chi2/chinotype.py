@@ -857,7 +857,7 @@ class Chi2:
             select {0} pat_count from {1} where ccd = 'TOTAL'
         )
         , data as (
-            select prefix, ccd
+            select prefix, c_description category, ccd
             , name
             , {3}
             , frc_{3} 
@@ -880,7 +880,7 @@ class Chi2:
 	      (1-frc_{3})*frc_{0}/((1-frc_{0})*frc_{3}) 
 	      end odds_ratio
 	    , case when frc_{3} = frc_{0} then 0 when frc_{3} < frc_{0} then 1 else -1 end dir
-            from {1}
+            from {1} left join {6} on prefix = {6}.c_name
             , cohort
             where frc_{3} > 0   -- reference patient set frequency
             {5}
@@ -897,12 +897,13 @@ class Chi2:
             where ccd != 'TOTAL'
             order by rank
         ) 
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
+        select prefix, description, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from data where ccd = 'TOTAL'
         union all
-        select prefix, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
+        select prefix, description, ccd, name, {3}, frc_{3}, {0}, frc_{0}, chisq, odds_ratio, dir
         from ranked_data {2}
-        '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, cutoff)
+        '''.format(self.chi_name, self.pcounts, limstr, self.ref, filterStr, 
+                   cutoff, self.chischemes)
         cols, rows = do_log_sql(db, sql, self.filter)
 
         # Write results to file
