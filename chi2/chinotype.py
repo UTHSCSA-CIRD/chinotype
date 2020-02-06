@@ -449,7 +449,7 @@ class Chi2:
                 create table {0} as
                 --- This seems to be the subquery that creates counts by concept
                 with ttls as (
-		  select ccd, replace(replace(ccd,'H_',''),'L_','') joinccd
+		  select ccd, replace(replace(replace(ccd,'H_',''),'L_',''),'A_','') joinccd
 		  ,count(distinct pn) total from {1} 
 		  group by ccd
 		), ttls2 as (
