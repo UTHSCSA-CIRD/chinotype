@@ -904,7 +904,7 @@ class Chi2:
 
         # Write results to file
         if self.to_file:
-            quote = ['PREFIX', 'CCD', 'NAME']
+            quote = ['PREFIX', 'CATEGORY', 'CCD', 'NAME']
             with open(self.outfile, 'w') as file:
                 file.write('%s\n' % ','.join(['\"{0}\"'.format(c) for c in cols]))
                 for row in rows:
