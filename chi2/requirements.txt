@@ -41,7 +41,7 @@ ordereddict
 
 # for chi2
 wsgiref==0.1.2
-mechanize==0.2.5
+mechanize==0.4.6
 
 # uthscsa chi2notypes driver
 docopt==0.6.2
